@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InDesign Update - PDF & IDML Word Replacer</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-file-edit"></i> InDesign Update</h1>
+            <p>Replace words in PDF and IDML files with ease</p>
+        </header>
+
+        <main>
+            <section class="upload-section">
+                <div class="file-upload-area" id="fileUploadArea">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>Drag & drop your PDF or IDML file here</p>
+                    <p class="or">or</p>
+                    <button class="browse-btn" onclick="document.getElementById('fileInput').click()">
+                        <i class="fas fa-folder-open"></i> Browse Files
+                    </button>
+                    <input type="file" id="fileInput" accept=".pdf,.idml" style="display: none;">
+                </div>
+                
+                <div class="file-info" id="fileInfo" style="display: none;">
+                    <div class="file-details">
+                        <i class="fas fa-file"></i>
+                        <span id="fileName">No file selected</span>
+                        <span id="fileSize"></span>
+                    </div>
+                    <button class="remove-file-btn" id="removeFileBtn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </section>
+
+            <section class="replacement-section" id="replacementSection" style="display: none;">
+                <h2><i class="fas fa-exchange-alt"></i> Word Replacement</h2>
+                
+                <div class="replacement-pairs" id="replacementPairs">
+                    <div class="replacement-pair">
+                        <div class="input-group">
+                            <label for="findWord1">Find Word:</label>
+                            <input type="text" id="findWord1" placeholder="Enter word to replace">
+                        </div>
+                        <div class="input-group">
+                            <label for="replaceWord1">Replace With:</label>
+                            <input type="text" id="replaceWord1" placeholder="Enter replacement word">
+                        </div>
+                        <button class="remove-pair-btn" onclick="removePair(this)" style="display: none;">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="controls">
+                    <button class="add-pair-btn" id="addPairBtn">
+                        <i class="fas fa-plus"></i> Add Another Replacement
+                    </button>
+                    
+                    <div class="options">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="caseSensitive">
+                            <span class="checkmark"></span>
+                            Case sensitive
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="wholeWords">
+                            <span class="checkmark"></span>
+                            Whole words only
+                        </label>
+                    </div>
+                </div>
+
+                <button class="process-btn" id="processBtn">
+                    <i class="fas fa-cog"></i> Process File
+                </button>
+            </section>
+
+            <section class="progress-section" id="progressSection" style="display: none;">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <p class="progress-text" id="progressText">Processing...</p>
+            </section>
+
+            <section class="download-section" id="downloadSection" style="display: none;">
+                <div class="success-message">
+                    <i class="fas fa-check-circle"></i>
+                    <h3>Processing Complete!</h3>
+                    <p id="replacementSummary">Replacements made successfully</p>
+                </div>
+                <button class="download-btn" id="downloadBtn">
+                    <i class="fas fa-download"></i> Download Modified File
+                </button>
+                <button class="restart-btn" id="restartBtn">
+                    <i class="fas fa-redo"></i> Process Another File
+                </button>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 InDesign Update Tool - Created for GitHub Pages</p>
+            <div class="tech-info">
+                <span><i class="fas fa-file-pdf"></i> PDF Support</span>
+                <span><i class="fas fa-file-code"></i> IDML Support</span>
+                <span><i class="fas fa-shield-alt"></i> Client-side Processing</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Loading overlay -->
+    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+    <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="js/pdf-processor.js"></script>
+    <script src="js/idml-processor.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

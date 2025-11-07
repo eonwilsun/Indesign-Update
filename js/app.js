@@ -1,0 +1,442 @@
+// Main Application JavaScript
+class InDesignUpdateApp {
+    constructor() {
+        this.currentFile = null;
+        this.fileType = null;
+        this.pdfProcessor = new PDFProcessor();
+        this.idmlProcessor = new IDMLProcessor();
+        this.pairCounter = 1;
+        
+        this.initializeEventListeners();
+        this.setupDragAndDrop();
+    }
+
+    initializeEventListeners() {
+        // File input
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                this.handleFileSelection(e.target.files[0]);
+            }
+        });
+
+        // Remove file button
+        document.getElementById('removeFileBtn').addEventListener('click', () => {
+            this.removeFile();
+        });
+
+        // Add replacement pair button
+        document.getElementById('addPairBtn').addEventListener('click', () => {
+            this.addReplacementPair();
+        });
+
+        // Process button
+        document.getElementById('processBtn').addEventListener('click', () => {
+            this.processFile();
+        });
+
+        // Download button
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+            this.downloadFile();
+        });
+
+        // Restart button
+        document.getElementById('restartBtn').addEventListener('click', () => {
+            this.restart();
+        });
+
+        // Input validation for first pair
+        this.setupInputValidation();
+    }
+
+    setupDragAndDrop() {
+        const uploadArea = document.getElementById('fileUploadArea');
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                this.handleFileSelection(files[0]);
+            }
+        });
+
+        uploadArea.addEventListener('click', () => {
+            document.getElementById('fileInput').click();
+        });
+    }
+
+    async handleFileSelection(file) {
+        try {
+            // Validate file type
+            const fileName = file.name.toLowerCase();
+            if (!fileName.endsWith('.pdf') && !fileName.endsWith('.idml')) {
+                throw new Error('Please select a PDF or IDML file.');
+            }
+
+            this.currentFile = file;
+            this.fileType = fileName.endsWith('.pdf') ? 'pdf' : 'idml';
+
+            // Update UI
+            this.showFileInfo(file);
+            this.showReplacementSection();
+
+            // Load file for processing
+            this.showLoading('Loading file...');
+            
+            if (this.fileType === 'pdf') {
+                await this.pdfProcessor.loadPDF(file);
+            } else {
+                await this.idmlProcessor.loadIDML(file);
+                
+                // Get IDML info for user feedback
+                const idmlInfo = await this.idmlProcessor.getIDMLInfo();
+                if (!idmlInfo.isValid) {
+                    console.warn('IDML validation warning:', idmlInfo.error);
+                }
+            }
+
+            this.hideLoading();
+            this.showSuccess(`${this.fileType.toUpperCase()} file loaded successfully!`);
+
+        } catch (error) {
+            this.hideLoading();
+            this.showError(error.message);
+            this.removeFile();
+        }
+    }
+
+    showFileInfo(file) {
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const fileInfo = document.getElementById('fileInfo');
+        const uploadArea = document.getElementById('fileUploadArea');
+
+        fileName.textContent = file.name;
+        fileSize.textContent = this.formatFileSize(file.size);
+        
+        uploadArea.style.display = 'none';
+        fileInfo.style.display = 'flex';
+        fileInfo.classList.add('fade-in');
+    }
+
+    removeFile() {
+        this.currentFile = null;
+        this.fileType = null;
+        
+        // Reset UI
+        document.getElementById('fileUploadArea').style.display = 'block';
+        document.getElementById('fileInfo').style.display = 'none';
+        document.getElementById('replacementSection').style.display = 'none';
+        document.getElementById('progressSection').style.display = 'none';
+        document.getElementById('downloadSection').style.display = 'none';
+        
+        // Reset file input
+        document.getElementById('fileInput').value = '';
+    }
+
+    showReplacementSection() {
+        const section = document.getElementById('replacementSection');
+        section.style.display = 'block';
+        section.classList.add('slide-in');
+        
+        // Focus on first input
+        document.getElementById('findWord1').focus();
+    }
+
+    addReplacementPair() {
+        this.pairCounter++;
+        const pairsContainer = document.getElementById('replacementPairs');
+        
+        const pairDiv = document.createElement('div');
+        pairDiv.className = 'replacement-pair';
+        pairDiv.innerHTML = `
+            <div class="input-group">
+                <label for="findWord${this.pairCounter}">Find Word:</label>
+                <input type="text" id="findWord${this.pairCounter}" placeholder="Enter word to replace">
+            </div>
+            <div class="input-group">
+                <label for="replaceWord${this.pairCounter}">Replace With:</label>
+                <input type="text" id="replaceWord${this.pairCounter}" placeholder="Enter replacement word">
+            </div>
+            <button class="remove-pair-btn" onclick="app.removePair(this)">
+                <i class="fas fa-trash"></i>
+            </button>
+        `;
+        
+        pairsContainer.appendChild(pairDiv);
+        pairDiv.classList.add('slide-in');
+        
+        // Update remove button visibility
+        this.updateRemoveButtons();
+        
+        // Focus on new input
+        document.getElementById(`findWord${this.pairCounter}`).focus();
+    }
+
+    removePair(button) {
+        const pair = button.closest('.replacement-pair');
+        pair.remove();
+        this.updateRemoveButtons();
+    }
+
+    updateRemoveButtons() {
+        const pairs = document.querySelectorAll('.replacement-pair');
+        pairs.forEach((pair, index) => {
+            const removeBtn = pair.querySelector('.remove-pair-btn');
+            removeBtn.style.display = pairs.length > 1 ? 'block' : 'none';
+        });
+    }
+
+    setupInputValidation() {
+        const processBtn = document.getElementById('processBtn');
+        
+        const validateInputs = () => {
+            const pairs = document.querySelectorAll('.replacement-pair');
+            let hasValidPair = false;
+            
+            pairs.forEach(pair => {
+                const findInput = pair.querySelector('input[id^="findWord"]');
+                const replaceInput = pair.querySelector('input[id^="replaceWord"]');
+                
+                if (findInput.value.trim() && replaceInput.value.trim()) {
+                    hasValidPair = true;
+                }
+            });
+            
+            processBtn.disabled = !hasValidPair || !this.currentFile;
+        };
+
+        // Add input listeners to all current and future inputs
+        document.addEventListener('input', (e) => {
+            if (e.target.matches('input[id^="findWord"], input[id^="replaceWord"]')) {
+                validateInputs();
+            }
+        });
+
+        // Initial validation
+        validateInputs();
+    }
+
+    async processFile() {
+        try {
+            if (!this.currentFile) {
+                throw new Error('No file selected');
+            }
+
+            // Get replacement pairs
+            const replacements = this.getReplacementPairs();
+            if (replacements.length === 0) {
+                throw new Error('Please add at least one replacement pair');
+            }
+
+            // Get options
+            const options = {
+                caseSensitive: document.getElementById('caseSensitive').checked,
+                wholeWords: document.getElementById('wholeWords').checked
+            };
+
+            // Show progress
+            this.showProgress();
+            this.updateProgress(10, 'Starting processing...');
+
+            let result;
+            if (this.fileType === 'pdf') {
+                this.updateProgress(30, 'Processing PDF...');
+                result = await this.pdfProcessor.processReplacements(replacements, options);
+            } else {
+                this.updateProgress(30, 'Processing IDML...');
+                result = await this.idmlProcessor.processReplacements(replacements, options);
+            }
+
+            this.updateProgress(90, 'Finalizing...');
+
+            if (result.success) {
+                // Store result for download
+                this.processedFile = result;
+                this.updateProgress(100, 'Complete!');
+                
+                setTimeout(() => {
+                    this.showDownloadSection(result);
+                }, 500);
+            } else {
+                throw new Error('Processing failed');
+            }
+
+        } catch (error) {
+            this.hideProgress();
+            this.showError(error.message);
+        }
+    }
+
+    getReplacementPairs() {
+        const pairs = [];
+        const replacementPairs = document.querySelectorAll('.replacement-pair');
+        
+        replacementPairs.forEach(pair => {
+            const findInput = pair.querySelector('input[id^="findWord"]');
+            const replaceInput = pair.querySelector('input[id^="replaceWord"]');
+            
+            const find = findInput.value.trim();
+            const replace = replaceInput.value.trim();
+            
+            if (find && replace) {
+                pairs.push({ find, replace });
+            }
+        });
+        
+        return pairs;
+    }
+
+    showProgress() {
+        document.getElementById('replacementSection').style.display = 'none';
+        document.getElementById('progressSection').style.display = 'block';
+        document.getElementById('progressSection').classList.add('fade-in');
+    }
+
+    updateProgress(percentage, text) {
+        document.getElementById('progressFill').style.width = percentage + '%';
+        document.getElementById('progressText').textContent = text;
+    }
+
+    hideProgress() {
+        document.getElementById('progressSection').style.display = 'none';
+    }
+
+    showDownloadSection(result) {
+        document.getElementById('progressSection').style.display = 'none';
+        document.getElementById('downloadSection').style.display = 'block';
+        document.getElementById('downloadSection').classList.add('slide-in');
+        
+        // Update summary
+        const summary = document.getElementById('replacementSummary');
+        summary.textContent = `${result.totalReplacements} replacement(s) made successfully`;
+    }
+
+    async downloadFile() {
+        try {
+            if (!this.processedFile) {
+                throw new Error('No processed file available');
+            }
+
+            let blob;
+            let filename;
+            
+            if (this.fileType === 'pdf') {
+                blob = await this.pdfProcessor.createDownloadableBlob(this.processedFile.modifiedPdfBytes);
+                filename = this.currentFile.name.replace('.pdf', '_modified.pdf');
+            } else {
+                blob = await this.idmlProcessor.createDownloadableBlob(this.processedFile.modifiedIdmlBytes);
+                filename = this.currentFile.name.replace('.idml', '_modified.idml');
+            }
+
+            // Create download link
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            this.showSuccess('File downloaded successfully!');
+
+        } catch (error) {
+            this.showError('Download failed: ' + error.message);
+        }
+    }
+
+    restart() {
+        this.removeFile();
+        this.processedFile = null;
+        
+        // Reset replacement pairs to just one
+        const pairsContainer = document.getElementById('replacementPairs');
+        pairsContainer.innerHTML = `
+            <div class="replacement-pair">
+                <div class="input-group">
+                    <label for="findWord1">Find Word:</label>
+                    <input type="text" id="findWord1" placeholder="Enter word to replace">
+                </div>
+                <div class="input-group">
+                    <label for="replaceWord1">Replace With:</label>
+                    <input type="text" id="replaceWord1" placeholder="Enter replacement word">
+                </div>
+                <button class="remove-pair-btn" onclick="app.removePair(this)" style="display: none;">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        `;
+        
+        this.pairCounter = 1;
+        
+        // Reset checkboxes
+        document.getElementById('caseSensitive').checked = false;
+        document.getElementById('wholeWords').checked = false;
+        
+        // Re-setup validation
+        this.setupInputValidation();
+    }
+
+    // Utility methods
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    showLoading(message = 'Loading...') {
+        const overlay = document.getElementById('loadingOverlay');
+        overlay.style.display = 'flex';
+        // You could add the message display here if needed
+    }
+
+    hideLoading() {
+        document.getElementById('loadingOverlay').style.display = 'none';
+    }
+
+    showSuccess(message) {
+        // Simple success notification - you could enhance this
+        console.log('Success:', message);
+        // You could add a toast notification system here
+    }
+
+    showError(message) {
+        // Simple error notification - you could enhance this
+        console.error('Error:', message);
+        alert('Error: ' + message);
+    }
+}
+
+// Initialize the application when the page loads
+let app;
+document.addEventListener('DOMContentLoaded', () => {
+    // Wait for external libraries to load
+    const checkLibraries = () => {
+        if (typeof PDFLib !== 'undefined' && 
+            typeof pdfjsLib !== 'undefined' && 
+            typeof JSZip !== 'undefined') {
+            app = new InDesignUpdateApp();
+        } else {
+            setTimeout(checkLibraries, 100);
+        }
+    };
+    
+    checkLibraries();
+});
+
+// Make app globally available for button onclick handlers
+window.app = app;

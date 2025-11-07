@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Page - InDesign Update Tool</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .test-item { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        .loading { background-color: #fff3cd; border-color: #ffeaa7; color: #856404; }
+        button { padding: 10px 20px; margin: 10px 5px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        #results { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>InDesign Update Tool - Library Test</h1>
+    <p>This page tests if all required libraries are loading correctly.</p>
+    
+    <div class="test-item loading" id="testStatus">
+        <h3>Running Tests...</h3>
+        <p>Checking library availability...</p>
+    </div>
+
+    <div id="results"></div>
+
+    <div style="margin-top: 30px;">
+        <button onclick="window.location.href='index.html'">Go to Main Application</button>
+        <button onclick="runTests()">Re-run Tests</button>
+    </div>
+
+    <!-- Load the same libraries as the main app -->
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+    <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+
+    <script>
+        function addResult(title, status, message) {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-item ${status}`;
+            div.innerHTML = `<h4>${title}</h4><p>${message}</p>`;
+            results.appendChild(div);
+        }
+
+        function runTests() {
+            const results = document.getElementById('results');
+            results.innerHTML = '';
+            
+            let allPassed = true;
+
+            // Test PDF-lib
+            if (typeof PDFLib !== 'undefined') {
+                addResult('PDF-lib', 'success', 'PDF-lib library loaded successfully.');
+            } else {
+                addResult('PDF-lib', 'error', 'PDF-lib library failed to load.');
+                allPassed = false;
+            }
+
+            // Test PDF.js
+            if (typeof pdfjsLib !== 'undefined') {
+                addResult('PDF.js', 'success', 'PDF.js library loaded successfully.');
+            } else {
+                addResult('PDF.js', 'error', 'PDF.js library failed to load.');
+                allPassed = false;
+            }
+
+            // Test JSZip
+            if (typeof JSZip !== 'undefined') {
+                addResult('JSZip', 'success', 'JSZip library loaded successfully.');
+            } else {
+                addResult('JSZip', 'error', 'JSZip library failed to load.');
+                allPassed = false;
+            }
+
+            // Test File API support
+            if (window.File && window.FileReader && window.FileList && window.Blob) {
+                addResult('File API', 'success', 'Browser supports File API.');
+            } else {
+                addResult('File API', 'error', 'Browser does not support File API.');
+                allPassed = false;
+            }
+
+            // Test Drag and Drop API support
+            if ('draggable' in document.createElement('div')) {
+                addResult('Drag & Drop API', 'success', 'Browser supports Drag & Drop API.');
+            } else {
+                addResult('Drag & Drop API', 'error', 'Browser does not support Drag & Drop API.');
+                allPassed = false;
+            }
+
+            // Update status
+            const statusDiv = document.getElementById('testStatus');
+            if (allPassed) {
+                statusDiv.className = 'test-item success';
+                statusDiv.innerHTML = '<h3>All Tests Passed!</h3><p>The application should work correctly in this browser.</p>';
+            } else {
+                statusDiv.className = 'test-item error';
+                statusDiv.innerHTML = '<h3>Some Tests Failed</h3><p>The application may not work correctly. Try using a modern browser like Chrome, Firefox, or Safari.</p>';
+            }
+
+            // Test basic functionality
+            setTimeout(() => {
+                try {
+                    // Test creating a PDF document
+                    const pdfDoc = PDFLib.PDFDocument.create();
+                    addResult('PDF Creation Test', 'success', 'Basic PDF document creation works.');
+                    
+                    // Test creating a ZIP
+                    const zip = new JSZip();
+                    zip.file('test.txt', 'Hello World');
+                    addResult('ZIP Creation Test', 'success', 'Basic ZIP file creation works.');
+                    
+                } catch (error) {
+                    addResult('Functionality Test', 'error', 'Error in basic functionality: ' + error.message);
+                }
+            }, 1000);
+        }
+
+        // Wait for libraries to load, then run tests
+        let checkCount = 0;
+        const maxChecks = 50; // 5 seconds max
+
+        function checkLibraries() {
+            checkCount++;
+            
+            if (typeof PDFLib !== 'undefined' && 
+                typeof pdfjsLib !== 'undefined' && 
+                typeof JSZip !== 'undefined') {
+                runTests();
+            } else if (checkCount < maxChecks) {
+                setTimeout(checkLibraries, 100);
+            } else {
+                document.getElementById('testStatus').className = 'test-item error';
+                document.getElementById('testStatus').innerHTML = '<h3>Timeout</h3><p>Libraries took too long to load. Check your internet connection.</p>';
+                runTests();
+            }
+        }
+
+        // Start checking when page loads
+        checkLibraries();
+    </script>
+</body>
+</html>

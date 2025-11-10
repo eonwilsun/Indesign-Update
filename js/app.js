@@ -46,10 +46,11 @@ class InDesignUpdateApp {
                     try {
                         const srcLang = document.getElementById('srcLang').value || 'auto';
                         const langs = await this.translator.loadGlossary(e.target.files[0], srcLang);
-                        this.showSuccess(`Glossary loaded. Languages: ${langs.join(', ')}`);
+                        this._updateGlossaryStatus(`Loaded glossary. Detected language columns: ${langs.join(', ')}`);
                     } catch (err) {
                         this.showError('Failed to load glossary: ' + err.message);
                         e.target.value = '';
+                        this._updateGlossaryStatus('Glossary load failed.');
                     }
                 }
             });
@@ -265,6 +266,12 @@ class InDesignUpdateApp {
     _glossaryHasLang(lang) {
         if (!this.translator.glossary) return false;
         return Object.values(this.translator.glossary).some(entry => entry[lang]);
+    }
+
+    _updateGlossaryStatus(message) {
+        const el = document.getElementById('glossaryStatus');
+        if (!el) return;
+        el.textContent = message;
     }
 
     setMode(mode) {

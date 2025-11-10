@@ -7,14 +7,18 @@ class PDFProcessor {
 
     async loadPDF(file) {
         try {
-            this.originalPdfBytes = await file.arrayBuffer();
-            
-            // Load PDF with PDF.js for text extraction
+            // Read file once and create independent copies for pdf.js and pdf-lib
+            const arrayBuffer = await file.arrayBuffer();
+            // create copies so one library cannot detach the other's buffer
+            this.pdfJsBytes = new Uint8Array(arrayBuffer).slice();
+            this.pdfLibBytes = new Uint8Array(arrayBuffer).slice();
+
+            // Load PDF with PDF.js for text extraction using the pdfJsBytes copy
             const loadingTask = pdfjsLib.getDocument({
-                data: this.originalPdfBytes,
+                data: this.pdfJsBytes,
                 useSystemFonts: true
             });
-            
+
             this.pdfDocument = await loadingTask.promise;
             return true;
         } catch (error) {
@@ -69,8 +73,8 @@ class PDFProcessor {
 
     async processReplacements(replacements, options = {}) {
         try {
-            // Load the PDF with pdf-lib for modification
-            const pdfDoc = await PDFLib.PDFDocument.load(this.originalPdfBytes);
+            // Load the PDF with pdf-lib for modification using the independent copy
+            const pdfDoc = await PDFLib.PDFDocument.load(this.pdfLibBytes);
             const pages = pdfDoc.getPages();
             
             // Extract text content for analysis

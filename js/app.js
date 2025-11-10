@@ -5,7 +5,9 @@ class InDesignUpdateApp {
         this.fileType = null;
         this.pdfProcessor = new PDFProcessor();
         this.idmlProcessor = new IDMLProcessor();
+        this.translator = new Translator();
         this.pairCounter = 1;
+        this.mode = 'replace'; // 'replace' | 'translate'
         
         this.initializeEventListeners();
         this.setupDragAndDrop();
@@ -28,6 +30,30 @@ class InDesignUpdateApp {
         document.getElementById('addPairBtn').addEventListener('click', () => {
             this.addReplacementPair();
         });
+
+        // Mode toggle
+        document.getElementById('modeToggle').addEventListener('change', (e) => {
+            if (e.target && e.target.name === 'mode') {
+                this.setMode(e.target.value);
+            }
+        });
+
+        // Glossary upload
+        const glossaryInput = document.getElementById('glossaryFile');
+        if (glossaryInput) {
+            glossaryInput.addEventListener('change', async (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    try {
+                        const srcLang = document.getElementById('srcLang').value || 'auto';
+                        const langs = await this.translator.loadGlossary(e.target.files[0], srcLang);
+                        this.showSuccess(`Glossary loaded. Languages: ${langs.join(', ')}`);
+                    } catch (err) {
+                        this.showError('Failed to load glossary: ' + err.message);
+                        e.target.value = '';
+                    }
+                }
+            });
+        }
 
         // Process button
         document.getElementById('processBtn').addEventListener('click', () => {
@@ -202,24 +228,29 @@ class InDesignUpdateApp {
         const processBtn = document.getElementById('processBtn');
         
         const validateInputs = () => {
-            const pairs = document.querySelectorAll('.replacement-pair');
-            let hasValidPair = false;
-            
-            pairs.forEach(pair => {
-                const findInput = pair.querySelector('input[id^="findWord"]');
-                const replaceInput = pair.querySelector('input[id^="replaceWord"]');
-                
-                if (findInput.value.trim() && replaceInput.value.trim()) {
-                    hasValidPair = true;
-                }
-            });
-            
-            processBtn.disabled = !hasValidPair || !this.currentFile;
+            if (this.mode === 'replace') {
+                const pairs = document.querySelectorAll('.replacement-pair');
+                let hasValidPair = false;
+                pairs.forEach(pair => {
+                    const findInput = pair.querySelector('input[id^="findWord"]');
+                    const replaceInput = pair.querySelector('input[id^="replaceWord"]');
+                    if (findInput.value.trim() && replaceInput.value.trim()) {
+                        hasValidPair = true;
+                    }
+                });
+                processBtn.disabled = !hasValidPair || !this.currentFile;
+            } else {
+                const tgt = document.getElementById('tgtLang').value;
+                processBtn.disabled = !this.currentFile || !tgt || !this.translator.glossary;
+            }
         };
 
         // Add input listeners to all current and future inputs
         document.addEventListener('input', (e) => {
             if (e.target.matches('input[id^="findWord"], input[id^="replaceWord"]')) {
+                validateInputs();
+            }
+            if (e.target.matches('#tgtLang, #srcLang')) {
                 validateInputs();
             }
         });
@@ -228,16 +259,36 @@ class InDesignUpdateApp {
         validateInputs();
     }
 
+    setMode(mode) {
+        this.mode = mode;
+        const isTranslate = mode === 'translate';
+        document.getElementById('replacementPairs').style.display = isTranslate ? 'none' : 'block';
+        document.getElementById('addPairBtn').style.display = isTranslate ? 'none' : 'inline-block';
+        const pane = document.getElementById('translatePane');
+        if (pane) pane.style.display = isTranslate ? 'block' : 'none';
+        this.setupInputValidation();
+    }
+
     async processFile() {
         try {
             if (!this.currentFile) {
                 throw new Error('No file selected');
             }
 
-            // Get replacement pairs
-            const replacements = this.getReplacementPairs();
-            if (replacements.length === 0) {
-                throw new Error('Please add at least one replacement pair');
+            // Build replacements: either manual pairs or from glossary (translate mode)
+            let replacements;
+            if (this.mode === 'replace') {
+                replacements = this.getReplacementPairs();
+                if (replacements.length === 0) {
+                    throw new Error('Please add at least one replacement pair');
+                }
+            } else {
+                const tgt = document.getElementById('tgtLang').value;
+                const src = document.getElementById('srcLang').value || 'auto';
+                if (!tgt) throw new Error('Select a target language');
+                if (!this.translator.glossary) throw new Error('Load a glossary file');
+                replacements = this.translator.buildReplacementsFor(tgt, src);
+                if (!replacements.length) throw new Error('No entries for the selected target language in the glossary');
             }
 
             // Get options

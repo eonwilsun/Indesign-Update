@@ -7,6 +7,7 @@ A web-based application for replacing words in PDF and IDML (InDesign) files. Th
 - **PDF Processing**: Extract text from PDFs and replace specific words while maintaining layout
 - **IDML Processing**: Parse InDesign IDML files and perform text replacements that preserve all design elements
 - **Multiple Replacements**: Add multiple find/replace pairs in a single operation
+- **Translate Mode (Glossary-based)**: Upload a CSV/JSON glossary and translate documents by selecting the target language
 - **Case Sensitivity**: Option to perform case-sensitive or case-insensitive replacements
 - **Whole Words**: Option to replace only whole words or partial matches
 - **Client-Side Processing**: All processing happens in the browser - files never leave your computer
@@ -26,6 +27,35 @@ A web-based application for replacing words in PDF and IDML (InDesign) files. Th
 3. Performs XML-safe text replacements in content tags
 4. Reconstructs the IDML file with modifications
 5. Maintains all InDesign formatting, styles, and layout elements
+
+### Translate Mode (Glossary)
+This project supports translation without external APIs using your own term glossary.
+
+- Upload a CSV or JSON file with language columns
+- Choose source (optional) and target language
+- The app converts the glossary into find/replace pairs and applies them across the document
+
+CSV formats supported:
+
+1) With explicit source column (recommended):
+
+```
+source,en,fr,de
+Hello,Hello,Bonjour,Hallo
+World,World,Monde,Welt
+```
+
+2) Language-only headers (first column treated as source when source language is selected):
+
+```
+en,fr,de
+Hello,Bonjour,Hallo
+World,Monde,Welt
+```
+
+Notes:
+- Longer phrases are matched before shorter ones to reduce partial overlaps
+- For best results, keep consistent casing and enable "Whole words only" when appropriate
 
 ## Usage
 
@@ -100,6 +130,10 @@ All dependencies are loaded via CDN:
 - Some advanced InDesign features may not round-trip perfectly
 - Binary .indd files are not supported (use IDML export)
 
+### Translate Mode:
+- This is glossary-based (no external translation API). It won't translate arbitrary sentences beyond entries provided in your glossary
+- For live machine translation (e.g., Azure, DeepL), you need a server-side proxy to protect API keys. A static GitHub Pages site cannot safely store secrets
+
 ## Technical Details
 
 ### PDF Text Replacement Process:
@@ -121,6 +155,8 @@ All dependencies are loaded via CDN:
 - All processing happens client-side in the browser
 - Files are never uploaded to any server
 - No data is stored or transmitted
+
+For machine translation via cloud APIs, use a server-side proxy (e.g., serverless function) to keep API keys secret; direct browser calls from a static site will expose keys.
 
 ## Contributing
 

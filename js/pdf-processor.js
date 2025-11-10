@@ -83,6 +83,9 @@ class PDFProcessor {
             let totalReplacements = 0;
             const replacementLog = [];
 
+            // Embed a fallback font for measuring/drawing replacement text
+            const helveticaFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+
             // Process each page
             for (let pageIndex = 0; pageIndex < textContent.length; pageIndex++) {
                 const pageData = textContent[pageIndex];
@@ -105,30 +108,38 @@ class PDFProcessor {
                         if (found) {
                             // Calculate position for replacement text
                             const textPosition = this.calculateTextPosition(line);
-                            
-                            // Cover the original text with a white rectangle
+                            // Use measured width from embedded font to size the cover rectangle
+                            const fontSize = Math.max(8, line.fontSize || 10);
+                            const textWidth = helveticaFont.widthOfTextAtSize(newText, fontSize);
+                            const paddingX = 6; // horizontal padding to cover adjacent glyphs
+                            const paddingY = 4; // vertical padding
+
+                            const rectX = Math.max(0, textPosition.x - paddingX);
+                            const rectY = Math.max(0, textPosition.y - paddingY);
+                            const rectWidth = Math.max(textPosition.width, textWidth) + paddingX * 2;
+                            const rectHeight = (textPosition.height || fontSize) + paddingY * 2;
+
+                            // Cover the original text with a background rectangle (assume white page)
                             page.drawRectangle({
-                                x: textPosition.x - 2,
-                                y: textPosition.y - 2,
-                                width: textPosition.width + 4,
-                                height: textPosition.height + 4,
+                                x: rectX,
+                                y: rectY,
+                                width: rectWidth,
+                                height: rectHeight,
                                 color: PDFLib.rgb(1, 1, 1), // White
                             });
-                            
-                            // Draw the new text (basic LTR). For RTL languages, right-align by width heuristic
+
+                            // Draw the new text using the embedded font. Align RTL by measuring width.
                             const isRTL = this.isRTLLanguage(options?.targetLang);
-                            const drawOpts = {
-                                x: textPosition.x,
-                                y: textPosition.y,
-                                size: textPosition.fontSize,
+                            const drawX = isRTL ? Math.max(0, textPosition.x + textPosition.width - textWidth) : textPosition.x;
+                            const drawY = textPosition.y;
+
+                            page.drawText(newText, {
+                                x: drawX,
+                                y: drawY,
+                                size: fontSize,
+                                font: helveticaFont,
                                 color: PDFLib.rgb(0, 0, 0),
-                            };
-                            if (isRTL) {
-                                // crude width estimate: characters * 0.6 * size
-                                const estWidth = newText.length * 0.6 * textPosition.fontSize;
-                                drawOpts.x = Math.max(0, textPosition.x + textPosition.width - estWidth);
-                            }
-                            page.drawText(newText, drawOpts);
+                            });
                             
                             totalReplacements++;
                             replacementLog.push({
@@ -242,7 +253,7 @@ class PDFProcessor {
             y: line.y,
             width: line.width,
             height: line.height,
-            fontSize: Math.max(8, line.fontSize * 0.8) // Slightly smaller to fit better
+            fontSize: Math.max(8, line.fontSize) // Use detected font size from PDF
         };
     }
 

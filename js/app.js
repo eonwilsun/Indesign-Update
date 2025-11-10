@@ -618,6 +618,28 @@ class InDesignUpdateApp {
 // Initialize the application when the page loads
 let app;
 document.addEventListener('DOMContentLoaded', () => {
+    // Fallback UI toggle: ensure the mode radio buttons immediately toggle the UI
+    // even if the main app hasn't been constructed yet (external libs may be slow).
+    try {
+        const modeToggleEl = document.getElementById('modeToggle');
+        if (modeToggleEl) {
+            modeToggleEl.addEventListener('change', (e) => {
+                if (e.target && e.target.name === 'mode') {
+                    const isTranslate = e.target.value === 'translate';
+                    const replacementPairs = document.getElementById('replacementPairs');
+                    const addPairBtn = document.getElementById('addPairBtn');
+                    const pane = document.getElementById('translatePane');
+                    if (replacementPairs) replacementPairs.style.display = isTranslate ? 'none' : 'block';
+                    if (addPairBtn) addPairBtn.style.display = isTranslate ? 'none' : 'inline-block';
+                    if (pane) pane.style.display = isTranslate ? 'block' : 'none';
+                }
+            });
+        }
+    } catch (err) {
+        // swallow any errors here — the main app will attach its own handlers later
+        console.warn('Fallback mode toggle setup failed:', err);
+    }
+
     // Wait for external libraries to load
     const checkLibraries = () => {
         if (typeof PDFLib !== 'undefined' && 

@@ -121,6 +121,21 @@
                         Upload a glossary mapping terms to languages. CSV header examples: 
                         <code>source,en,fr,de</code> or <code>en,fr,de</code>. The selected target column will be used.
                     </p>
+
+                    <div class="paste-glossary">
+                        <label class="checkbox-label" style="margin: 10px 0;">
+                            <input type="checkbox" id="useJsonPaste">
+                            <span class="checkmark"></span>
+                            Paste JSON glossary instead of uploading a file
+                        </label>
+                        <div id="jsonPasteWrap" style="display:none;">
+                            <div class="input-group">
+                                <label for="jsonGlossary">JSON glossary (array of objects)</label>
+                                <textarea id="jsonGlossary" rows="6" placeholder='Example: [ {"source":"Hello","fr":"Bonjour","de":"Hallo"}, {"source":"World","fr":"Monde","de":"Welt"} ]'></textarea>
+                            </div>
+                            <button class="add-pair-btn" id="loadJsonBtn" type="button">Load JSON Glossary</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="controls">

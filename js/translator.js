@@ -30,6 +30,22 @@ class Translator {
         return Array.from(langs);
     }
 
+    // Public: load from JSON string directly (paste UI)
+    async loadFromJSONString(jsonText, srcLangHint = 'auto') {
+        let parsed;
+        try {
+            parsed = JSON.parse(jsonText);
+        } catch (e) {
+            throw new Error('Invalid JSON');
+        }
+        this._ingestJSON(parsed, srcLangHint);
+        const langs = new Set();
+        Object.values(this.glossary).forEach(map => {
+            Object.keys(map).forEach(l => langs.add(l));
+        });
+        return Array.from(langs);
+    }
+
     // Build replacements array for selected target language; optionally restricted to a subset
     buildReplacementsFor(targetLang, srcLang = 'auto') {
         if (!this.glossary) throw new Error('No glossary loaded');

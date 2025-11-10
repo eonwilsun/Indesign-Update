@@ -56,6 +56,25 @@ World,Monde,Welt
 Notes:
 - Longer phrases are matched before shorter ones to reduce partial overlaps
 - For best results, keep consistent casing and enable "Whole words only" when appropriate
+ - You can also paste a JSON array directly instead of uploading a file.
+
+JSON example:
+
+```
+[
+	{ "source": "Hello", "fr": "Bonjour", "de": "Hallo" },
+	{ "source": "World", "fr": "Monde", "de": "Welt" }
+]
+```
+
+Or language-only (first entry treated as source column if no explicit `source` key):
+
+```
+[
+	{ "en": "Hello", "fr": "Bonjour", "de": "Hallo" },
+	{ "en": "World", "fr": "Monde", "de": "Welt" }
+]
+```
 
 ## Usage
 

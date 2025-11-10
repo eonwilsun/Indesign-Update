@@ -243,7 +243,8 @@ class InDesignUpdateApp {
                 processBtn.disabled = !hasValidPair || !this.currentFile;
             } else {
                 const tgt = document.getElementById('tgtLang').value;
-                processBtn.disabled = !this.currentFile || !tgt || !this.translator.glossary;
+                const glossaryReady = !!this.translator.glossary;
+                processBtn.disabled = !this.currentFile || !tgt || !glossaryReady || !this._glossaryHasLang(tgt);
             }
         };
 
@@ -259,6 +260,11 @@ class InDesignUpdateApp {
 
         // Initial validation
         validateInputs();
+    }
+
+    _glossaryHasLang(lang) {
+        if (!this.translator.glossary) return false;
+        return Object.values(this.translator.glossary).some(entry => entry[lang]);
     }
 
     setMode(mode) {

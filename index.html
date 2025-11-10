@@ -121,6 +121,9 @@
                         Upload a glossary mapping terms to languages. CSV header examples: 
                         <code>source,en,fr,de</code> or <code>en,fr,de</code>. The selected target column will be used.
                     </p>
+                    <p class="hint">
+                        Need a template? <a href="glossary-example.csv" download>Download example CSV</a>.
+                    </p>
 
                     
                 </div>
@@ -191,6 +194,13 @@
     <!-- Scripts -->
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+    <script>
+        // Configure PDF.js worker (needed on some browsers/CDN)
+        if (window['pdfjsLib']) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+        }
+    </script>
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
     <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="js/pdf-processor.js"></script>
     <script src="js/idml-processor.js"></script>

@@ -8,7 +8,7 @@ class Translator {
     constructor() {
         this.glossary = null; // { sourceTermLower: { langCode: translatedText, ... } }
         this.availableLangs = [
-            'en','fr','de','es','it','pt','nl','sv','da','fi','no','pl','ru','ja','zh'
+            'en','fr','de','es','it','pt','nl','sv','da','fi','no','pl','ru','ja','zh','ar','he'
         ];
     }
 
@@ -52,16 +52,13 @@ class Translator {
 
     // Very small CSV parser (no quoted multiline support). For robust needs, use PapaParse.
     _parseCSV(csvText) {
-        const lines = csvText.split(/\r?\n/).filter(l => l.trim().length);
-        if (lines.length === 0) return [];
-        const header = lines[0].split(',').map(h => h.trim());
-        const rows = [];
-        for (let i = 1; i < lines.length; i++) {
-            const cols = lines[i].split(',');
-            const obj = {};
-            header.forEach((h, idx) => obj[h] = (cols[idx] || '').trim());
-            rows.push(obj);
+        // Use PapaParse for robust CSV handling
+        const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+        if (parsed.errors && parsed.errors.length) {
+            console.warn('CSV parse warnings:', parsed.errors);
         }
+        const header = parsed.meta.fields || [];
+        const rows = parsed.data || [];
         return { header, rows };
     }
 

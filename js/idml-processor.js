@@ -72,8 +72,18 @@ class IDMLProcessor {
                 // Store modified content if changes were made
                 if (storyReplacements > 0) {
                     this.modifiedFiles.set(storyPath, modifiedXml);
+                    console.log(`[IDMLProcessor] Modified story: ${storyPath} (replacements: ${storyReplacements})`);
+                } else {
+                    console.log(`[IDMLProcessor] No replacements in story: ${storyPath}`);
                 }
+
+                // Debug: log current modifiedFiles keys
+                console.log('[IDMLProcessor] modifiedFiles keys:', Array.from(this.modifiedFiles.keys()));
             }
+
+            // Debug summary before packaging
+            console.log('[IDMLProcessor] Total replacements across all stories:', totalReplacements);
+            console.log('[IDMLProcessor] Total modified files to include in new IDML:', this.modifiedFiles.size);
 
             // Create new IDML file with modifications
             const modifiedIdmlBytes = await this.createModifiedIDML();
@@ -99,6 +109,7 @@ class IDMLProcessor {
         // We need to be careful to only replace text content, not XML tags or attributes
         
         const contentRegex = /<Content[^>]*>(.*?)<\/Content>/gs;
+
         
         newXml = newXml.replace(contentRegex, (match, contentText) => {
             const { newText, replacementCount } = this.replaceTextContent(

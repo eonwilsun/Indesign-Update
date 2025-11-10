@@ -55,39 +55,7 @@ class InDesignUpdateApp {
             });
         }
 
-        // JSON paste toggle
-        const useJsonPaste = document.getElementById('useJsonPaste');
-        const jsonWrap = document.getElementById('jsonPasteWrap');
-        if (useJsonPaste) {
-            useJsonPaste.addEventListener('change', () => {
-                const enabled = useJsonPaste.checked;
-                jsonWrap.style.display = enabled ? 'block' : 'none';
-                glossaryInput.parentElement.style.display = enabled ? 'none' : 'block';
-                if (enabled) glossaryInput.value = '';
-                this.setupInputValidation();
-            });
-        }
-
-        // Load JSON glossary button
-        const loadJsonBtn = document.getElementById('loadJsonBtn');
-        if (loadJsonBtn) {
-            loadJsonBtn.addEventListener('click', async () => {
-                const textArea = document.getElementById('jsonGlossary');
-                const raw = textArea.value.trim();
-                if (!raw) {
-                    this.showError('Paste JSON glossary first');
-                    return;
-                }
-                try {
-                    const srcLang = document.getElementById('srcLang').value || 'auto';
-                    const langs = await this.translator.loadFromJSONString(raw, srcLang);
-                    this.showSuccess(`JSON glossary loaded. Languages: ${langs.join(', ')}`);
-                    this.setupInputValidation();
-                } catch (err) {
-                    this.showError('Failed to parse JSON glossary: ' + err.message);
-                }
-            });
-        }
+        // (Removed JSON paste option; CSV upload only now.)
 
         // Process button
         document.getElementById('processBtn').addEventListener('click', () => {

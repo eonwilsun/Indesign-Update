@@ -7,7 +7,7 @@ A web-based application for replacing words in PDF and IDML (InDesign) files. Th
 - **PDF Processing**: Extract text from PDFs and replace specific words while maintaining layout
 - **IDML Processing**: Parse InDesign IDML files and perform text replacements that preserve all design elements
 - **Multiple Replacements**: Add multiple find/replace pairs in a single operation
-- **Translate Mode (Glossary-based)**: Upload a CSV/JSON glossary and translate documents by selecting the target language
+- **Translate Mode (Glossary-based)**: Upload a CSV glossary and translate documents by selecting the target language
 - **Case Sensitivity**: Option to perform case-sensitive or case-insensitive replacements
 - **Whole Words**: Option to replace only whole words or partial matches
 - **Client-Side Processing**: All processing happens in the browser - files never leave your computer
@@ -28,8 +28,8 @@ A web-based application for replacing words in PDF and IDML (InDesign) files. Th
 4. Reconstructs the IDML file with modifications
 5. Maintains all InDesign formatting, styles, and layout elements
 
-### Translate Mode (Glossary)
-This project supports translation without external APIs using your own term glossary.
+### Translate Mode (CSV Glossary)
+This project supports translation without external APIs using your own term glossary in CSV format.
 
 - Upload a CSV or JSON file with language columns
 - Choose source (optional) and target language
@@ -56,25 +56,7 @@ World,Monde,Welt
 Notes:
 - Longer phrases are matched before shorter ones to reduce partial overlaps
 - For best results, keep consistent casing and enable "Whole words only" when appropriate
- - You can also paste a JSON array directly instead of uploading a file.
-
-JSON example:
-
-```
-[
-	{ "source": "Hello", "fr": "Bonjour", "de": "Hallo" },
-	{ "source": "World", "fr": "Monde", "de": "Welt" }
-]
-```
-
-Or language-only (first entry treated as source column if no explicit `source` key):
-
-```
-[
-	{ "en": "Hello", "fr": "Bonjour", "de": "Hallo" },
-	{ "en": "World", "fr": "Monde", "de": "Welt" }
-]
-```
+JSON paste option removed per request (keep CSV for consistency).
 
 ## Usage
 

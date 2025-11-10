@@ -281,6 +281,57 @@ class InDesignUpdateApp {
         validateInputs();
     }
 
+    // Show a preview of the loaded glossary (first N rows)
+    previewGlossary() {
+        if (!this.translator || !this.translator.glossary) {
+            this.showError('No glossary loaded. Upload a CSV glossary first.');
+            return;
+        }
+
+        const preview = this.translator.getPreviewRows(50);
+        const container = document.getElementById('glossaryPreview');
+        container.innerHTML = '';
+        if (!preview.rows || preview.rows.length === 0) {
+            container.textContent = 'No glossary entries to preview.';
+            container.style.display = 'block';
+            return;
+        }
+
+        const table = document.createElement('table');
+        table.className = 'preview-table-inner';
+
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        const thSource = document.createElement('th');
+        thSource.textContent = 'Source';
+        headerRow.appendChild(thSource);
+        for (const l of preview.langs) {
+            const th = document.createElement('th');
+            th.textContent = l;
+            headerRow.appendChild(th);
+        }
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        for (const row of preview.rows) {
+            const tr = document.createElement('tr');
+            const tdSource = document.createElement('td');
+            tdSource.textContent = row.source || '';
+            tr.appendChild(tdSource);
+            for (const l of preview.langs) {
+                const td = document.createElement('td');
+                td.textContent = row[l] || '';
+                tr.appendChild(td);
+            }
+            tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+
+        container.appendChild(table);
+        container.style.display = 'block';
+    }
+
     _glossaryHasLang(lang) {
         if (!this.translator.glossary) return false;
         return Object.values(this.translator.glossary).some(entry => entry[lang]);

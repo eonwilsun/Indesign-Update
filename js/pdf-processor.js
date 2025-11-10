@@ -54,6 +54,19 @@ class PDFProcessor {
         return textContent;
     }
 
+    async getAllTextLines() {
+        const content = await this.extractTextContent();
+        const lines = [];
+        for (const page of content) {
+            const grouped = this.groupTextIntoLines(page.textItems);
+            grouped.forEach(g => {
+                const t = (g.text || '').trim();
+                if (t) lines.push(t);
+            });
+        }
+        return lines;
+    }
+
     async processReplacements(replacements, options = {}) {
         try {
             // Load the PDF with pdf-lib for modification
@@ -98,13 +111,20 @@ class PDFProcessor {
                                 color: PDFLib.rgb(1, 1, 1), // White
                             });
                             
-                            // Draw the new text
-                            page.drawText(newText, {
+                            // Draw the new text (basic LTR). For RTL languages, right-align by width heuristic
+                            const isRTL = this.isRTLLanguage(options?.targetLang);
+                            const drawOpts = {
                                 x: textPosition.x,
                                 y: textPosition.y,
                                 size: textPosition.fontSize,
                                 color: PDFLib.rgb(0, 0, 0),
-                            });
+                            };
+                            if (isRTL) {
+                                // crude width estimate: characters * 0.6 * size
+                                const estWidth = newText.length * 0.6 * textPosition.fontSize;
+                                drawOpts.x = Math.max(0, textPosition.x + textPosition.width - estWidth);
+                            }
+                            page.drawText(newText, drawOpts);
                             
                             totalReplacements++;
                             replacementLog.push({
@@ -132,6 +152,10 @@ class PDFProcessor {
             console.error('Error processing PDF replacements:', error);
             throw new Error('Failed to process PDF replacements: ' + error.message);
         }
+    }
+
+    isRTLLanguage(lang) {
+        return ['ar','he','fa','ur'].includes(lang);
     }
 
     groupTextIntoLines(textItems) {

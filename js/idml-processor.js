@@ -265,6 +265,24 @@ class IDMLProcessor {
             };
         }
     }
+
+    // Extract all textual content lines from story files (for export/preview)
+    async getAllTextLines() {
+        if (!this.idmlZip) throw new Error('No IDML loaded');
+        const lines = [];
+        const contentRegex = /<Content[^>]*>(.*?)<\/Content>/gs;
+        for (const storyPath of this.storyFiles) {
+            const storyFile = this.idmlZip.file(storyPath);
+            if (!storyFile) continue;
+            const xmlContent = await storyFile.async('text');
+            let match;
+            while ((match = contentRegex.exec(xmlContent)) !== null) {
+                const txt = match[1].replace(/\s+/g, ' ').trim();
+                if (txt) lines.push(txt);
+            }
+        }
+        return lines;
+    }
 }
 
 // Export for use in other modules

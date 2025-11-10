@@ -40,6 +40,10 @@ header p {
     opacity: 0.9;
 }
 
+.header-actions {
+    margin-top: 10px;
+}
+
 /* Main content */
 main {
     flex: 1;
@@ -446,6 +450,40 @@ footer {
     font-size: 3rem;
     color: white;
 }
+
+/* Table preview styles */
+.preview-table table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 10px;
+    overflow: hidden;
+}
+.preview-table th, .preview-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+    font-size: 0.95rem;
+}
+.preview-table th {
+    background: #f5f7ff;
+    font-weight: 700;
+}
+.preview-table tr:nth-child(even) td { background: #fafbff; }
+
+/* Dark mode */
+body.dark {
+    color: #e6e6e6;
+    background: linear-gradient(135deg, #1f1f2e 0%, #1a1f2e 100%);
+}
+body.dark main { background: #23263a; box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
+body.dark .file-upload-area { background: #2a2e46; border-color: #8ea2ff; }
+body.dark .file-upload-area p, body.dark .progress-text { color: #d7dbff; }
+body.dark .file-info { background: #2a2e46; }
+body.dark .replacement-pair { background: #2a2e46; }
+body.dark .input-group input, body.dark textarea#jsonGlossary { background: #1b1e2d; color: #e6e6e6; border-color: #3a3f5a; }
+body.dark .preview-table th { background: #303552; }
+body.dark .preview-table td { background: #2a2e46; border-color: #3a3f5a; }
 
 /* Responsive design */
 @media (max-width: 768px) {

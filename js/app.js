@@ -63,6 +63,19 @@ class InDesignUpdateApp {
             this.processFile();
         });
 
+    // Preview glossary
+    const previewBtn = document.getElementById('previewGlossaryBtn');
+    if (previewBtn) previewBtn.addEventListener('click', () => this.previewGlossary());
+
+    // Export text for glossary
+    const exportBtn = document.getElementById('exportTextBtn');
+    if (exportBtn) exportBtn.addEventListener('click', () => this.exportTextForGlossary());
+
+    // Theme toggle
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) themeToggle.addEventListener('click', () => this.toggleTheme());
+    // (UI handlers above already wired once)
+
         // Download button
         document.getElementById('downloadBtn').addEventListener('click', () => {
             this.downloadFile();
@@ -137,6 +150,11 @@ class InDesignUpdateApp {
 
             this.hideLoading();
             this.showSuccess(`${this.fileType.toUpperCase()} file loaded successfully!`);
+            // Show export button and preview button
+            const exportBtn = document.getElementById('exportTextBtn');
+            const previewBtn = document.getElementById('previewGlossaryBtn');
+            if (exportBtn) exportBtn.style.display = 'inline-block';
+            if (previewBtn && this.mode === 'translate') previewBtn.style.display = 'inline-block';
 
         } catch (error) {
             this.hideLoading();
@@ -334,6 +352,8 @@ class InDesignUpdateApp {
                 
                 setTimeout(() => {
                     this.showDownloadSection(result);
+                    // render replacement details
+                    this.renderReplacementDetails(result.replacementLog || []);
                 }, 500);
             } else {
                 throw new Error('Processing failed');

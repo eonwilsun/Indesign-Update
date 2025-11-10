@@ -77,57 +77,14 @@
                 </div>
 
                 <div class="translate-pane" id="translatePane" style="display: none;">
-                    <div class="grid-3">
+                    <div class="grid-1">
                         <div class="input-group">
-                            <label for="srcLang">Source language</label>
-                            <select id="srcLang">
-                                <option value="auto" selected>Detect automatically</option>
-                                <option value="en">English (en)</option>
-                                <option value="fr">French (fr)</option>
-                                <option value="de">German (de)</option>
-                                <option value="es">Spanish (es)</option>
-                                <option value="it">Italian (it)</option>
-                                <option value="pt">Portuguese (pt)</option>
-                                <option value="nl">Dutch (nl)</option>
-                                <option value="sv">Swedish (sv)</option>
-                                <option value="da">Danish (da)</option>
-                                <option value="fi">Finnish (fi)</option>
-                                <option value="no">Norwegian (no)</option>
-                                <option value="pl">Polish (pl)</option>
-                                <option value="ru">Russian (ru)</option>
-                                <option value="ja">Japanese (ja)</option>
-                                <option value="zh">Chinese (zh)</option>
-                            </select>
-                        </div>
-                        <div class="input-group">
-                            <label for="tgtLang">Target language</label>
-                            <select id="tgtLang">
-                                <option value="">Select target…</option>
-                                <option value="en">English (en)</option>
-                                <option value="fr">French (fr)</option>
-                                <option value="de">German (de)</option>
-                                <option value="es">Spanish (es)</option>
-                                <option value="it">Italian (it)</option>
-                                <option value="pt">Portuguese (pt)</option>
-                                <option value="nl">Dutch (nl)</option>
-                                <option value="sv">Swedish (sv)</option>
-                                <option value="da">Danish (da)</option>
-                                <option value="fi">Finnish (fi)</option>
-                                <option value="no">Norwegian (no)</option>
-                                <option value="pl">Polish (pl)</option>
-                                <option value="ru">Russian (ru)</option>
-                                <option value="ja">Japanese (ja)</option>
-                                <option value="zh">Chinese (zh)</option>
-                            </select>
-                        </div>
-                        <div class="input-group">
-                            <label for="glossaryFile">Glossary file (CSV)</label>
+                            <label for="glossaryFile">CSV file (current,replace)</label>
                             <input type="file" id="glossaryFile" accept=".csv">
                         </div>
                     </div>
                     <p class="hint">
-                        Upload a glossary mapping terms to languages. CSV header examples: 
-                        <code>source,en,fr,de</code> or <code>en,fr,de</code>. The selected target column will be used.
+                        Upload a CSV that defines the replacements. Expected header: <code>current,replace</code> (case-insensitive). The tool will use the value in the <em>current</em> column to find text and replace it with the value from the <em>replace</em> column. Values may be words, phrases or paragraphs.
                     </p>
                     <p class="hint">
                         Need a template? <a href="glossary-example.csv" download>Download example CSV</a>.

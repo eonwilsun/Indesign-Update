@@ -38,20 +38,48 @@ class InDesignUpdateApp {
             }
         });
 
-        // Glossary upload
+        // Glossary / CSV upload: support two formats
+        // 1) CSV with headers `current,replace` -> use as direct replacements
+        // 2) Language-style CSV (source,en,fr,...) -> fallback to translator.loadGlossary
         const glossaryInput = document.getElementById('glossaryFile');
         if (glossaryInput) {
-            glossaryInput.addEventListener('change', async (e) => {
+            glossaryInput.addEventListener('change', (e) => {
                 if (e.target.files && e.target.files[0]) {
-                    try {
-                        const srcLang = document.getElementById('srcLang').value || 'auto';
-                        const langs = await this.translator.loadGlossary(e.target.files[0], srcLang);
-                        this._updateGlossaryStatus(`Loaded glossary. Detected language columns: ${langs.join(', ')}`);
-                    } catch (err) {
-                        this.showError('Failed to load glossary: ' + err.message);
-                        e.target.value = '';
-                        this._updateGlossaryStatus('Glossary load failed.');
-                    }
+                    const file = e.target.files[0];
+                    // Parse with Papa to inspect header quickly
+                    Papa.parse(file, {
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: async (parsed) => {
+                            try {
+                                const header = (parsed.meta.fields || []).map(h => (h||'').trim().toLowerCase());
+                                const rows = parsed.data || [];
+                                // If header contains current & replace, build csvReplacements
+                                if (header.includes('current') && header.includes('replace')) {
+                                    const curKey = parsed.meta.fields.find(h => (h||'').trim().toLowerCase() === 'current');
+                                    const repKey = parsed.meta.fields.find(h => (h||'').trim().toLowerCase() === 'replace');
+                                    this.csvReplacements = rows.map(r => ({ find: (r[curKey]||'').toString(), replace: (r[repKey]||'').toString() })).filter(p => p.find && p.replace);
+                                    this.translator.glossary = null; // clear old glossary
+                                    this._updateGlossaryStatus(`Loaded CSV replacements: ${this.csvReplacements.length} pairs`);
+                                } else {
+                                    // fallback to language glossary ingestion
+                                    try {
+                                        const langs = await this.translator.loadGlossary(file, 'auto');
+                                        this.csvReplacements = null;
+                                        this._updateGlossaryStatus(`Loaded glossary. Detected language columns: ${langs.join(', ')}`);
+                                    } catch (err) {
+                                        this.showError('Failed to load glossary: ' + err.message);
+                                        e.target.value = '';
+                                        this._updateGlossaryStatus('Glossary load failed.');
+                                    }
+                                }
+                            } catch (err) {
+                                this.showError('Failed to parse CSV: ' + err.message);
+                                e.target.value = '';
+                                this._updateGlossaryStatus('CSV parse failed.');
+                            }
+                        }
+                    });
                 }
             });
         }
@@ -261,9 +289,9 @@ class InDesignUpdateApp {
                 });
                 processBtn.disabled = !hasValidPair || !this.currentFile;
             } else {
-                const tgt = document.getElementById('tgtLang').value;
-                const glossaryReady = !!this.translator.glossary;
-                processBtn.disabled = !this.currentFile || !tgt || !glossaryReady || !this._glossaryHasLang(tgt);
+                const csvReady = Array.isArray(this.csvReplacements) && this.csvReplacements.length > 0;
+                const glossaryReady = csvReady || !!this.translator.glossary;
+                processBtn.disabled = !this.currentFile || !glossaryReady;
             }
         };
 
@@ -272,7 +300,7 @@ class InDesignUpdateApp {
             if (e.target.matches('input[id^="findWord"], input[id^="replaceWord"]')) {
                 validateInputs();
             }
-            if (e.target.matches('#tgtLang, #srcLang')) {
+            if (e.target.matches('#glossaryFile')) {
                 validateInputs();
             }
         });
@@ -283,14 +311,38 @@ class InDesignUpdateApp {
 
     // Show a preview of the loaded glossary (first N rows)
     previewGlossary() {
+        const container = document.getElementById('glossaryPreview');
+        container.innerHTML = '';
+
+        if (this.csvReplacements && this.csvReplacements.length) {
+            // Render CSV replacements preview
+            const table = document.createElement('table');
+            table.className = 'preview-table-inner';
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            const thCur = document.createElement('th'); thCur.textContent = 'Current'; headerRow.appendChild(thCur);
+            const thRep = document.createElement('th'); thRep.textContent = 'Replace With'; headerRow.appendChild(thRep);
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            const tbody = document.createElement('tbody');
+            for (const r of this.csvReplacements.slice(0,50)) {
+                const tr = document.createElement('tr');
+                const td1 = document.createElement('td'); td1.textContent = r.find; tr.appendChild(td1);
+                const td2 = document.createElement('td'); td2.textContent = r.replace; tr.appendChild(td2);
+                tbody.appendChild(tr);
+            }
+            table.appendChild(tbody);
+            container.appendChild(table);
+            container.style.display = 'block';
+            return;
+        }
+
         if (!this.translator || !this.translator.glossary) {
             this.showError('No glossary loaded. Upload a CSV glossary first.');
             return;
         }
 
-        const preview = this.translator.getPreviewRows(50);
-        const container = document.getElementById('glossaryPreview');
-        container.innerHTML = '';
+    const preview = this.translator.getPreviewRows(50);
         if (!preview.rows || preview.rows.length === 0) {
             container.textContent = 'No glossary entries to preview.';
             container.style.display = 'block';
@@ -333,6 +385,7 @@ class InDesignUpdateApp {
     }
 
     _glossaryHasLang(lang) {
+        if (this.csvReplacements && this.csvReplacements.length) return true;
         if (!this.translator.glossary) return false;
         return Object.values(this.translator.glossary).some(entry => entry[lang]);
     }
@@ -367,12 +420,16 @@ class InDesignUpdateApp {
                     throw new Error('Please add at least one replacement pair');
                 }
             } else {
-                const tgt = document.getElementById('tgtLang').value;
-                const src = document.getElementById('srcLang').value || 'auto';
-                if (!tgt) throw new Error('Select a target language');
-                if (!this.translator.glossary) throw new Error('Load a glossary file');
-                replacements = this.translator.buildReplacementsFor(tgt, src);
-                if (!replacements.length) throw new Error('No entries for the selected target language in the glossary');
+                // CSV replace mode: prefer csvReplacements built from a CSV with current/replace headers
+                if (this.csvReplacements && this.csvReplacements.length) {
+                    replacements = this.csvReplacements;
+                } else if (this.translator && this.translator.glossary) {
+                    // As a fallback, attempt to flatten translator glossary into simple replacements using the 'source' canonical key
+                    replacements = Object.keys(this.translator.glossary).map(k => ({ find: k, replace: this.translator.glossary[k][Object.keys(this.translator.glossary[k])[0]] || '' })).filter(r => r.find && r.replace);
+                    if (replacements.length === 0) throw new Error('Loaded glossary did not contain simple replacement pairs. Upload a CSV with "current,replace" header.');
+                } else {
+                    throw new Error('Load a CSV with current,replace columns');
+                }
             }
 
             // Get options

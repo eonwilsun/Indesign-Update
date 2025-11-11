@@ -73,13 +73,16 @@ class IDMLProcessor {
                         if (count > 0) {
                             this.modifiedFiles.set(storyPath, newXml);
                             totalReplacements += count;
+                            const debug = this._createDebugSnippet(xmlContent, newXml);
                             replacementLog.push({
                                 file: storyPath,
                                 original: replacement.find,
                                 replacement: replacement.replace,
-                                count: count
+                                count: count,
+                                debug
                             });
                             console.log(`[IDMLProcessor] Replaced ${count} occurrence(s) for '${replacement.find}' in ${storyPath}`);
+                            if (debug) console.log(`[IDMLProcessor][debug] ${storyPath}:`, debug);
                             anyFound = true;
                         }
                     }
@@ -115,13 +118,16 @@ class IDMLProcessor {
                             // Store modified content for this story
                             this.modifiedFiles.set(storyPath, newXml);
                             totalReplacements += count;
+                            const debug = this._createDebugSnippet(xmlContent, newXml);
                             replacementLog.push({
                                 file: storyPath,
                                 original: replacement.find,
                                 replacement: replacement.replace,
-                                count: count
+                                count: count,
+                                debug
                             });
                             console.log(`[IDMLProcessor] Replaced first occurrence for '${replacement.find}' in ${storyPath}`);
+                            if (debug) console.log(`[IDMLProcessor][debug] ${storyPath}:`, debug);
                             replaced = true;
                             break; // move to next CSV row
                         }
@@ -535,6 +541,29 @@ class IDMLProcessor {
     // Unescape common XML entities to their character equivalents
     _unescapeForXML(text) {
         return text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+    }
+
+    // Create a small debug snippet describing the change between original
+    // and modified XML for a story. Returns null when no change.
+    _createDebugSnippet(orig, modified, contextLen = 200) {
+        if (orig === modified) return null;
+        const minLen = Math.min(orig.length, modified.length);
+        let a = 0;
+        while (a < minLen && orig[a] === modified[a]) a++;
+        let b1 = orig.length - 1;
+        let b2 = modified.length - 1;
+        while (b1 >= a && b2 >= a && orig[b1] === modified[b2]) { b1--; b2--; }
+
+        const before = orig.slice(Math.max(0, a - contextLen), Math.min(orig.length, b1 + 1 + contextLen));
+        const after = modified.slice(Math.max(0, a - contextLen), Math.min(modified.length, b2 + 1 + contextLen));
+
+        return {
+            startIndex: a,
+            endIndexOrig: b1,
+            endIndexNew: b2,
+            before,
+            after
+        };
     }
 
     async createModifiedIDML() {

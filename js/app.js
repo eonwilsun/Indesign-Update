@@ -447,8 +447,11 @@ class InDesignUpdateApp {
             // Get options (global defaults). Global case/whole checkboxes were
             // removed in favor of per-pair controls, so only include replaceAll
             // (which comes from the Replace All button state).
+            const debugEnabled = !!(document.getElementById('debugMode') && document.getElementById('debugMode').checked);
+
             const options = {
-                replaceAll: !!replaceAll
+                replaceAll: !!replaceAll,
+                debug: debugEnabled
             };
 
             // Show progress
@@ -475,6 +478,8 @@ class InDesignUpdateApp {
                     this.showDownloadSection(result);
                     // render replacement details
                     this.renderReplacementDetails(result.replacementLog || []);
+                    // render debug output if requested
+                    if (options.debug) this.renderDebugOutput(result.replacementLog || []);
                 }, 500);
             } else {
                 throw new Error('Processing failed');
@@ -571,6 +576,41 @@ class InDesignUpdateApp {
 
         table.appendChild(tbody);
         container.appendChild(table);
+    }
+
+    // Show debug output (raw JSON + readable snippets) when debug mode enabled
+    renderDebugOutput(replacementLog) {
+        let out = document.getElementById('debugOutput');
+        if (!out) {
+            out = document.createElement('pre');
+            out.id = 'debugOutput';
+            out.style.maxHeight = '300px';
+            out.style.overflow = 'auto';
+            out.style.background = '#111';
+            out.style.color = '#dcdcdc';
+            out.style.padding = '10px';
+            out.style.marginTop = '12px';
+            const downloadSection = document.getElementById('downloadSection');
+            if (downloadSection) downloadSection.appendChild(out);
+        }
+
+        const safeLog = (replacementLog || []).map(item => {
+            const copy = Object.assign({}, item);
+            if (copy.debug && typeof copy.debug === 'object') {
+                // include only short snippets to avoid enormous output
+                copy.debug = {
+                    startIndex: copy.debug.startIndex,
+                    endIndexOrig: copy.debug.endIndexOrig,
+                    endIndexNew: copy.debug.endIndexNew,
+                    beforeSnippet: (copy.debug.before || '').slice(0, 800),
+                    afterSnippet: (copy.debug.after || '').slice(0, 800)
+                };
+            }
+            return copy;
+        });
+
+        out.textContent = JSON.stringify(safeLog, null, 2);
+        out.style.display = 'block';
     }
 
     async downloadFile() {

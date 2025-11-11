@@ -5,9 +5,8 @@ class InDesignUpdateApp {
         this.fileType = null;
         this.pdfProcessor = new PDFProcessor();
         this.idmlProcessor = new IDMLProcessor();
-        this.translator = new Translator();
         this.pairCounter = 1;
-        this.mode = 'replace'; // 'replace' | 'translate'
+        this.mode = 'replace';
         
         this.initializeEventListeners();
         this.setupDragAndDrop();
@@ -31,16 +30,9 @@ class InDesignUpdateApp {
             this.addReplacementPair();
         });
 
-        // Mode toggle
-        document.getElementById('modeToggle').addEventListener('change', (e) => {
-            if (e.target && e.target.name === 'mode') {
-                this.setMode(e.target.value);
-            }
-        });
+        // Mode toggle removed — CSV/manual replace is the single supported workflow now.
 
-        // Glossary / CSV upload: support two formats
-        // 1) CSV with headers `current,replace` -> use as direct replacements
-        // 2) Language-style CSV (source,en,fr,...) -> fallback to translator.loadGlossary
+    // Glossary / CSV upload: accept CSV with headers `current,replace` for direct replacements
         const glossaryInput = document.getElementById('glossaryFile');
         if (glossaryInput) {
             glossaryInput.addEventListener('change', (e) => {
@@ -59,19 +51,13 @@ class InDesignUpdateApp {
                                     const curKey = parsed.meta.fields.find(h => (h||'').trim().toLowerCase() === 'current');
                                     const repKey = parsed.meta.fields.find(h => (h||'').trim().toLowerCase() === 'replace');
                                     this.csvReplacements = rows.map(r => ({ find: (r[curKey]||'').toString(), replace: (r[repKey]||'').toString() })).filter(p => p.find && p.replace);
-                                    this.translator.glossary = null; // clear old glossary
                                     this._updateGlossaryStatus(`Loaded CSV replacements: ${this.csvReplacements.length} pairs`);
                                 } else {
-                                    // fallback to language glossary ingestion
-                                    try {
-                                        const langs = await this.translator.loadGlossary(file, 'auto');
-                                        this.csvReplacements = null;
-                                        this._updateGlossaryStatus(`Loaded glossary. Detected language columns: ${langs.join(', ')}`);
-                                    } catch (err) {
-                                        this.showError('Failed to load glossary: ' + err.message);
-                                        e.target.value = '';
-                                        this._updateGlossaryStatus('Glossary load failed.');
-                                    }
+                                    // We only accept CSVs with 'current' and 'replace' headers for direct replacements.
+                                    this.csvReplacements = null;
+                                    e.target.value = '';
+                                    this._updateGlossaryStatus('CSV must include header columns: current, replace');
+                                    this.showError('CSV must include header columns: current, replace');
                                 }
                             } catch (err) {
                                 this.showError('Failed to parse CSV: ' + err.message);
@@ -91,7 +77,7 @@ class InDesignUpdateApp {
             this.processFile();
         });
 
-    // Preview glossary
+    // Preview glossary / CSV
     const previewBtn = document.getElementById('previewGlossaryBtn');
     if (previewBtn) previewBtn.addEventListener('click', () => this.previewGlossary());
 
@@ -182,7 +168,7 @@ class InDesignUpdateApp {
             const exportBtn = document.getElementById('exportTextBtn');
             const previewBtn = document.getElementById('previewGlossaryBtn');
             if (exportBtn) exportBtn.style.display = 'inline-block';
-            if (previewBtn && this.mode === 'translate') previewBtn.style.display = 'inline-block';
+            if (previewBtn) previewBtn.style.display = 'inline-block';
 
         } catch (error) {
             this.hideLoading();
@@ -290,8 +276,15 @@ class InDesignUpdateApp {
                 processBtn.disabled = !hasValidPair || !this.currentFile;
             } else {
                 const csvReady = Array.isArray(this.csvReplacements) && this.csvReplacements.length > 0;
-                const glossaryReady = csvReady || !!this.translator.glossary;
-                processBtn.disabled = !this.currentFile || !glossaryReady;
+                // Also allow manual replacement pairs
+                let hasManualPair = false;
+                const pairs = document.querySelectorAll('.replacement-pair');
+                pairs.forEach(pair => {
+                    const findInput = pair.querySelector('input[id^="findWord"]');
+                    const replaceInput = pair.querySelector('input[id^="replaceWord"]');
+                    if (findInput && replaceInput && findInput.value.trim() && replaceInput.value.trim()) hasManualPair = true;
+                });
+                processBtn.disabled = !this.currentFile || !(csvReady || hasManualPair);
             }
         };
 
@@ -337,57 +330,14 @@ class InDesignUpdateApp {
             return;
         }
 
-        if (!this.translator || !this.translator.glossary) {
-            this.showError('No glossary loaded. Upload a CSV glossary first.');
-            return;
-        }
-
-    const preview = this.translator.getPreviewRows(50);
-        if (!preview.rows || preview.rows.length === 0) {
-            container.textContent = 'No glossary entries to preview.';
-            container.style.display = 'block';
-            return;
-        }
-
-        const table = document.createElement('table');
-        table.className = 'preview-table-inner';
-
-        const thead = document.createElement('thead');
-        const headerRow = document.createElement('tr');
-        const thSource = document.createElement('th');
-        thSource.textContent = 'Source';
-        headerRow.appendChild(thSource);
-        for (const l of preview.langs) {
-            const th = document.createElement('th');
-            th.textContent = l;
-            headerRow.appendChild(th);
-        }
-        thead.appendChild(headerRow);
-        table.appendChild(thead);
-
-        const tbody = document.createElement('tbody');
-        for (const row of preview.rows) {
-            const tr = document.createElement('tr');
-            const tdSource = document.createElement('td');
-            tdSource.textContent = row.source || '';
-            tr.appendChild(tdSource);
-            for (const l of preview.langs) {
-                const td = document.createElement('td');
-                td.textContent = row[l] || '';
-                tr.appendChild(td);
-            }
-            tbody.appendChild(tr);
-        }
-        table.appendChild(tbody);
-
-        container.appendChild(table);
+        // If we reach here there were no CSV replacements
+        container.textContent = 'No CSV replacements loaded. Upload a CSV with headers: current, replace.';
         container.style.display = 'block';
     }
 
     _glossaryHasLang(lang) {
-        if (this.csvReplacements && this.csvReplacements.length) return true;
-        if (!this.translator.glossary) return false;
-        return Object.values(this.translator.glossary).some(entry => entry[lang]);
+        // Legacy helper retained for UI checks — return true if CSV replacements are present
+        return Array.isArray(this.csvReplacements) && this.csvReplacements.length > 0;
     }
 
     _updateGlossaryStatus(message) {
@@ -397,13 +347,8 @@ class InDesignUpdateApp {
     }
 
     setMode(mode) {
-        this.mode = mode;
-        const isTranslate = mode === 'translate';
-        document.getElementById('replacementPairs').style.display = isTranslate ? 'none' : 'block';
-        document.getElementById('addPairBtn').style.display = isTranslate ? 'none' : 'inline-block';
-        const pane = document.getElementById('translatePane');
-        if (pane) pane.style.display = isTranslate ? 'block' : 'none';
-        this.setupInputValidation();
+        // Mode switching removed. Keep method stub for compatibility but do nothing.
+        this.mode = 'replace';
     }
 
     async processFile() {
@@ -412,24 +357,13 @@ class InDesignUpdateApp {
                 throw new Error('No file selected');
             }
 
-            // Build replacements: either manual pairs or from glossary (translate mode)
-            let replacements;
-            if (this.mode === 'replace') {
-                replacements = this.getReplacementPairs();
-                if (replacements.length === 0) {
-                    throw new Error('Please add at least one replacement pair');
-                }
+            // Build replacements: prefer CSV replacements if present, otherwise use manual pairs
+            let replacements = [];
+            if (this.csvReplacements && this.csvReplacements.length) {
+                replacements = this.csvReplacements;
             } else {
-                // CSV replace mode: prefer csvReplacements built from a CSV with current/replace headers
-                if (this.csvReplacements && this.csvReplacements.length) {
-                    replacements = this.csvReplacements;
-                } else if (this.translator && this.translator.glossary) {
-                    // As a fallback, attempt to flatten translator glossary into simple replacements using the 'source' canonical key
-                    replacements = Object.keys(this.translator.glossary).map(k => ({ find: k, replace: this.translator.glossary[k][Object.keys(this.translator.glossary[k])[0]] || '' })).filter(r => r.find && r.replace);
-                    if (replacements.length === 0) throw new Error('Loaded glossary did not contain simple replacement pairs. Upload a CSV with "current,replace" header.');
-                } else {
-                    throw new Error('Load a CSV with current,replace columns');
-                }
+                replacements = this.getReplacementPairs();
+                if (replacements.length === 0) throw new Error('Please add at least one replacement pair or upload a CSV with current,replace headers');
             }
 
             // Get options
@@ -618,27 +552,7 @@ class InDesignUpdateApp {
 // Initialize the application when the page loads
 let app;
 document.addEventListener('DOMContentLoaded', () => {
-    // Fallback UI toggle: ensure the mode radio buttons immediately toggle the UI
-    // even if the main app hasn't been constructed yet (external libs may be slow).
-    try {
-        const modeToggleEl = document.getElementById('modeToggle');
-        if (modeToggleEl) {
-            modeToggleEl.addEventListener('change', (e) => {
-                if (e.target && e.target.name === 'mode') {
-                    const isTranslate = e.target.value === 'translate';
-                    const replacementPairs = document.getElementById('replacementPairs');
-                    const addPairBtn = document.getElementById('addPairBtn');
-                    const pane = document.getElementById('translatePane');
-                    if (replacementPairs) replacementPairs.style.display = isTranslate ? 'none' : 'block';
-                    if (addPairBtn) addPairBtn.style.display = isTranslate ? 'none' : 'inline-block';
-                    if (pane) pane.style.display = isTranslate ? 'block' : 'none';
-                }
-            });
-        }
-    } catch (err) {
-        // swallow any errors here — the main app will attach its own handlers later
-        console.warn('Fallback mode toggle setup failed:', err);
-    }
+    // Mode toggle fallback removed — app handles UI state directly.
 
     // Wait for external libraries to load
     const checkLibraries = () => {

@@ -95,14 +95,15 @@ class PDFProcessor {
                 const lines = this.groupTextIntoLines(pageData.textItems);
                 
                 for (const line of lines) {
-                    for (const replacement of replacements) {
+                        for (const replacement of replacements) {
                         if (!replacement.find || !replacement.replace) continue;
+                        const repOptions = Object.assign({}, options, replacement.options || {});
                         
                         const { found, newText } = this.performTextReplacement(
                             line.text, 
                             replacement.find, 
                             replacement.replace, 
-                            options
+                            repOptions
                         );
                         
                         if (found) {

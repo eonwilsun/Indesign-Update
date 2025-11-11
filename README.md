@@ -34,10 +34,10 @@ This project supports simple CSV-driven find/replace operations.
 - Upload a CSV with the header columns `current,replace` (case-insensitive). Each row's `current` value will be searched for in the document and replaced with the `replace` value.
 - Alternatively, add manual find/replace pairs in the UI when you don't want to upload a CSV.
 
-Example CSV:
+Example CSV (two columns only - source and replacement):
 
 ```
-current,replace
+source,replacement
 Hello,Bonjour
 World,Monde
 ```

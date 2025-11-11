@@ -57,7 +57,19 @@
                             <label for="replaceWord1">Replace With:</label>
                             <input type="text" id="replaceWord1" placeholder="Enter replacement word">
                         </div>
-                        <button class="remove-pair-btn" onclick="removePair(this)" style="display: none;">
+                        <div class="pair-options">
+                            <label class="checkbox-label small">
+                                <input type="checkbox" id="caseSensitive1">
+                                <span class="checkmark"></span>
+                                Case sensitive
+                            </label>
+                            <label class="checkbox-label small">
+                                <input type="checkbox" id="wholeWords1">
+                                <span class="checkmark"></span>
+                                Whole words only
+                            </label>
+                        </div>
+                        <button class="remove-pair-btn" onclick="app.removePair(this)" style="display: none;">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>

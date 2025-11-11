@@ -295,45 +295,31 @@ class InDesignUpdateApp {
 
     setupInputValidation() {
         const processBtn = document.getElementById('processBtn');
-        
-        const validateInputs = () => {
-            if (this.mode === 'replace') {
-                const pairs = document.querySelectorAll('.replacement-pair');
-                let hasValidPair = false;
-                pairs.forEach(pair => {
-                    const findInput = pair.querySelector('input[id^="findWord"]');
-                    const replaceInput = pair.querySelector('input[id^="replaceWord"]');
-                    if (findInput.value.trim() && replaceInput.value.trim()) {
-                        hasValidPair = true;
-                    }
-                });
-                processBtn.disabled = !hasValidPair || !this.currentFile;
-            } else {
-                const csvReady = Array.isArray(this.csvReplacements) && this.csvReplacements.length > 0;
-                // Also allow manual replacement pairs
-                let hasManualPair = false;
-                const pairs = document.querySelectorAll('.replacement-pair');
-                pairs.forEach(pair => {
-                    const findInput = pair.querySelector('input[id^="findWord"]');
-                    const replaceInput = pair.querySelector('input[id^="replaceWord"]');
-                    if (findInput && replaceInput && findInput.value.trim() && replaceInput.value.trim()) hasManualPair = true;
-                });
-                processBtn.disabled = !this.currentFile || !(csvReady || hasManualPair);
-            }
+
+        // Centralized state check used across the app
+        this.updateProcessButtonState = () => {
+            const csvReady = Array.isArray(this.csvReplacements) && this.csvReplacements.length > 0;
+            // Also allow manual replacement pairs
+            let hasManualPair = false;
+            const pairs = document.querySelectorAll('.replacement-pair');
+            pairs.forEach(pair => {
+                const findInput = pair.querySelector('input[id^="findWord"]');
+                const replaceInput = pair.querySelector('input[id^="replaceWord"]');
+                if (findInput && replaceInput && findInput.value.trim() && replaceInput.value.trim()) hasManualPair = true;
+            });
+
+            processBtn.disabled = !this.currentFile || !(csvReady || hasManualPair);
         };
 
-        // Add input listeners to all current and future inputs
+        // Add input listeners to update button state dynamically
         document.addEventListener('input', (e) => {
-            if (e.target.matches('input[id^="findWord"], input[id^="replaceWord"]')) {
-                validateInputs();
-            }
-            if (e.target.matches('#glossaryFile')) {
-                validateInputs();
+            if (e.target.matches('input[id^="findWord"], input[id^="replaceWord"], input[id^="caseSensitive"], input[id^="wholeWords"], #glossaryFile')) {
+                this.updateProcessButtonState();
             }
         });
 
         // Initial validation
-        validateInputs();
+        this.updateProcessButtonState();
     }
 
     // Show a preview of the loaded glossary (first N rows)
@@ -418,7 +404,12 @@ class InDesignUpdateApp {
             // Build replacements: prefer CSV replacements if present, otherwise use manual pairs
             let replacements = [];
             if (this.csvReplacements && this.csvReplacements.length) {
-                replacements = this.csvReplacements;
+                // Attach global options to CSV replacements (CSV rows don't carry per-row options)
+                const globalOptions = {
+                    caseSensitive: document.getElementById('caseSensitive').checked,
+                    wholeWords: document.getElementById('wholeWords').checked
+                };
+                replacements = this.csvReplacements.map(r => ({ find: r.find, replace: r.replace, options: Object.assign({}, globalOptions) }));
             } else {
                 replacements = this.getReplacementPairs();
                 if (replacements.length === 0) throw new Error('Please add at least one replacement pair or upload a CSV with current,replace headers');
@@ -468,16 +459,19 @@ class InDesignUpdateApp {
     getReplacementPairs() {
         const pairs = [];
         const replacementPairs = document.querySelectorAll('.replacement-pair');
-        
         replacementPairs.forEach(pair => {
             const findInput = pair.querySelector('input[id^="findWord"]');
             const replaceInput = pair.querySelector('input[id^="replaceWord"]');
-            
-            const find = findInput.value.trim();
-            const replace = replaceInput.value.trim();
-            
+            const csInput = pair.querySelector('input[id^="caseSensitive"]');
+            const wwInput = pair.querySelector('input[id^="wholeWords"]');
+
+            const find = findInput ? findInput.value.trim() : '';
+            const replace = replaceInput ? replaceInput.value.trim() : '';
+            const caseSensitive = csInput ? csInput.checked : false;
+            const wholeWords = wwInput ? wwInput.checked : false;
+
             if (find && replace) {
-                pairs.push({ find, replace });
+                pairs.push({ find, replace, options: { caseSensitive, wholeWords } });
             }
         });
         

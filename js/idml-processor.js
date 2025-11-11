@@ -42,6 +42,8 @@ class IDMLProcessor {
             for (const replacement of replacements) {
                 if (!replacement.find || !replacement.replace) continue;
 
+                const repOptions = Object.assign({}, options, replacement.options || {});
+
                 let replaced = false;
 
                 for (const storyPath of this.storyFiles) {
@@ -55,7 +57,7 @@ class IDMLProcessor {
                         xmlContent,
                         replacement.find,
                         replacement.replace,
-                        options
+                        repOptions
                     );
 
                     if (count > 0) {

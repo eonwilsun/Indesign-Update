@@ -862,6 +862,46 @@ class IDMLProcessor {
         }
         return lines;
     }
+
+    // Non-destructive pre-scan: report candidate matches across story files
+    // for the provided replacements. This does NOT modify any files and is
+    // intended for diagnostics (returns an array of match entries).
+    async preScanMatches(replacements, options = {}) {
+        if (!this.idmlZip) throw new Error('No IDML loaded');
+        const results = [];
+
+        for (const replacement of replacements) {
+            if (!replacement || !replacement.find) continue;
+            const repOptions = Object.assign({}, options, replacement.options || {});
+
+            for (const storyPath of this.storyFiles) {
+                const storyFile = this.idmlZip.file(storyPath);
+                if (!storyFile) continue;
+                const xmlContent = await storyFile.async('text');
+
+                try {
+                    // Use the existing single-match probe which is non-destructive
+                    const probe = this.performXMLTextReplacementOnce(xmlContent, replacement.find, replacement.replace, repOptions);
+                    if (probe && probe.count > 0) {
+                        const debug = probe.debugMatches || [];
+                        const snippet = this._createDebugSnippet(xmlContent, probe.newXml) || {};
+                        results.push({
+                            file: storyPath,
+                            original: replacement.find,
+                            replacement: replacement.replace,
+                            count: probe.count,
+                            debug: Object.assign({}, snippet, { matches: debug, matchType: probe.matchType })
+                        });
+                    }
+                } catch (e) {
+                    // Log and continue; pre-scan should be robust and not fail
+                    console.warn('preScan probe failed for', storyPath, e);
+                }
+            }
+        }
+
+        return results;
+    }
 }
 
 // Export for use in other modules

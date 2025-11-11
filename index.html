@@ -124,9 +124,14 @@
                     </label>
                 </div>
 
-                <button class="process-btn" id="processBtn">
+                <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+                    <button class="process-btn" id="processBtn">
                     <i class="fas fa-cog"></i> Process File
-                </button>
+                    </button>
+                    <button class="process-btn" id="prescanBtn" title="Scan IDML for all candidate matches without changing files">
+                        <i class="fas fa-search"></i> Pre-scan matches
+                    </button>
+                </div>
 
                 <div id="glossaryPreview" class="preview-table" style="display:none; margin-top:15px;"></div>
             </section>

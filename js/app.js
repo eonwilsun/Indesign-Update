@@ -86,6 +86,51 @@ class InDesignUpdateApp {
             this.processFile(false);
         });
 
+        // Pre-scan button: non-destructive search that lists candidate matches
+        const prescanBtn = document.getElementById('prescanBtn');
+        if (prescanBtn) prescanBtn.addEventListener('click', async () => {
+            try {
+                if (!this.currentFile || this.fileType !== 'idml') {
+                    this.showError('Please load an IDML file before running Pre-scan.');
+                    return;
+                }
+
+                // Build replacements (same logic as processFile)
+                let replacements = [];
+                if (this.csvReplacements && this.csvReplacements.length) {
+                    replacements = this.csvReplacements.map(r => ({ find: r.find, replace: r.replace, options: {} }));
+                } else {
+                    replacements = this.getReplacementPairs();
+                    if (replacements.length === 0) {
+                        this.showError('Please add at least one replacement pair or upload a CSV with current,replace headers');
+                        return;
+                    }
+                }
+
+                // Force debug for pre-scan
+                const options = { debug: true };
+
+                this.showProgress();
+                this.updateProgress(10, 'Running pre-scan...');
+                const scanResults = await this.idmlProcessor.preScanMatches(replacements, options);
+                this.hideProgress();
+
+                // Render results in the debug output area
+                if (typeof scanResults === 'object') {
+                    // Reuse renderDebugOutput but accept an array
+                    this.renderDebugOutput(scanResults);
+                    const count = Array.isArray(scanResults) ? scanResults.length : 0;
+                    this.showSuccess(`Pre-scan complete: ${count} candidate match entries (see Debug output)`);
+                } else {
+                    this.showError('Pre-scan returned no results');
+                }
+
+            } catch (err) {
+                this.hideProgress();
+                this.showError('Pre-scan failed: ' + err.message);
+            }
+        });
+
         // Replace All button - replaces all matches across the file
         const replaceAllBtn = document.getElementById('replaceAllBtn');
         if (replaceAllBtn) replaceAllBtn.addEventListener('click', () => {

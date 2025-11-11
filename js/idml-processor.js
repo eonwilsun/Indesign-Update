@@ -243,82 +243,96 @@ class IDMLProcessor {
     // Replace only the first occurrence inside a block of text (not the whole XML)
     // Returns { newText, replacementCount } where replacementCount is 0 or 1.
     replaceTextContentOnce(text, findText, replaceText, options) {
-        let searchText = findText;
-        let targetText = text;
-        let replacementCount = 0;
-
-        if (!options.caseSensitive) {
-            searchText = searchText.toLowerCase();
-            targetText = targetText.toLowerCase();
-        }
-
-        let newText = text;
-
-        if (options.wholeWords) {
-            const regex = new RegExp(`\\b${this.escapeRegExp(searchText)}\\b`, options.caseSensitive ? '' : 'i');
-            // Replace only first match
-            newText = text.replace(regex, (m) => {
-                replacementCount = 1;
-                return replaceText;
-            });
-        } else {
-            // Non-whole-words: find first index with case handling
-            if (!options.caseSensitive) {
-                const idx = text.toLowerCase().indexOf(searchText);
-                if (idx !== -1) {
-                    replacementCount = 1;
-                    newText = text.slice(0, idx) + replaceText + text.slice(idx + searchText.length);
-                }
-            } else {
-                const idx = text.indexOf(findText);
-                if (idx !== -1) {
-                    replacementCount = 1;
-                    newText = text.slice(0, idx) + replaceText + text.slice(idx + findText.length);
-                }
-            }
-        }
-
+        // Use whitespace-normalized matching so multi-line/paragraph finds
+        // (with newlines or multiple spaces) still match content blocks.
+        const { newText, replacementCount } = this._normalizedReplace(text, findText, replaceText, options, /* firstOnly */ true);
         return { newText, replacementCount };
     }
 
     replaceTextContent(text, findText, replaceText, options) {
-        let searchText = findText;
-        let targetText = text;
-        let replacementCount = 0;
-        
-        if (!options.caseSensitive) {
-            searchText = searchText.toLowerCase();
-            targetText = targetText.toLowerCase();
+        // Use whitespace-normalized matching for robust multi-line/space handling
+        const { newText, replacementCount } = this._normalizedReplace(text, findText, replaceText, options, /* firstOnly */ false);
+        return { newText, replacementCount };
+    }
+
+    // Helper: perform matching on a normalized (collapsed whitespace) copy of the
+    // text and map matches back to original indices so replacements preserve XML
+    // structure. If firstOnly is true, only the first match is replaced.
+    _normalizedReplace(originalText, findText, replaceText, options = {}, firstOnly = false) {
+        // Build normalized text and mapping from normalized indices back to original
+        const buildNormalized = (str) => {
+            const normChars = [];
+            const map = []; // map[normIndex] = origIndex
+            let i = 0;
+            while (i < str.length) {
+                const ch = str[i];
+                if (/[\s\u00A0]/.test(ch)) {
+                    // collapse any sequence of whitespace into a single space
+                    let j = i;
+                    while (j < str.length && /[\s\u00A0]/.test(str[j])) j++;
+                    normChars.push(' ');
+                    // map this normIndex to the start index of the whitespace run
+                    map.push(i);
+                    i = j;
+                } else {
+                    normChars.push(ch);
+                    map.push(i);
+                    i++;
+                }
+            }
+            return { norm: normChars.join(''), map };
+        };
+
+        const opts = Object.assign({ caseSensitive: false, wholeWords: false }, options || {});
+
+        const { norm: normOrig, map } = buildNormalized(originalText);
+        const normFind = findText.replace(/[\s\u00A0]+/g, ' ').trim();
+
+        let searchOrig = normOrig;
+        let searchFind = normFind;
+        if (!opts.caseSensitive) {
+            searchOrig = normOrig.toLowerCase();
+            searchFind = normFind.toLowerCase();
         }
-        
-        let newText = text;
-        
-        if (options.wholeWords) {
-            const regex = new RegExp(`\\b${this.escapeRegExp(searchText)}\\b`, 
-                options.caseSensitive ? 'g' : 'gi');
-            
-            // Count matches
-            const matches = targetText.match(regex);
-            if (matches) {
-                replacementCount = matches.length;
-                newText = text.replace(regex, replaceText);
+
+        const matches = [];
+
+        if (opts.wholeWords) {
+            // Build a word-boundary regex on the normalized find text
+            const re = new RegExp('\\b' + this.escapeRegExp(searchFind) + '\\b', opts.caseSensitive ? 'g' : 'gi');
+            let m;
+            const execSource = opts.caseSensitive ? normOrig : normOrig.toLowerCase();
+            while ((m = re.exec(execSource)) !== null) {
+                matches.push({ start: m.index, end: m.index + m[0].length });
+                if (firstOnly) break;
             }
         } else {
-            // Count occurrences
-            let index = targetText.indexOf(searchText);
-            while (index !== -1) {
-                replacementCount++;
-                index = targetText.indexOf(searchText, index + 1);
-            }
-            
-            if (replacementCount > 0) {
-                const regex = new RegExp(this.escapeRegExp(findText), 
-                    options.caseSensitive ? 'g' : 'gi');
-                newText = text.replace(regex, replaceText);
+            // Simple substring search on normalized text
+            let idx = 0;
+            while (true) {
+                const foundAt = searchOrig.indexOf(searchFind, idx);
+                if (foundAt === -1) break;
+                matches.push({ start: foundAt, end: foundAt + searchFind.length });
+                if (firstOnly) break;
+                idx = foundAt + searchFind.length;
             }
         }
-        
-        return { newText, replacementCount };
+
+        if (matches.length === 0) return { newText: originalText, replacementCount: 0 };
+
+        // Map normalized matches back to original ranges and perform replacements
+        // Replace from last to first to keep indices valid
+        let newText = originalText;
+        let total = 0;
+        for (let i = matches.length - 1; i >= 0; i--) {
+            const m = matches[i];
+            const origStart = map[m.start];
+            const origEnd = map[m.end - 1] + 1; // inclusive
+            newText = newText.slice(0, origStart) + replaceText + newText.slice(origEnd);
+            total++;
+        }
+
+        return { newText, replacementCount: total };
     }
 
     async createModifiedIDML() {

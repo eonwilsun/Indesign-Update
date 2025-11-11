@@ -16,9 +16,7 @@
                 <button id="exportTextBtn" class="browse-btn" style="display:none;">
                     <i class="fas fa-file-export"></i> Export Text for Glossary
                 </button>
-                <button id="themeToggle" class="browse-btn" style="margin-left:10px;">
-                    <i class="fas fa-moon"></i> Dark Mode
-                </button>
+                <!-- Dark mode removed -->
             </div>
         </header>
 
@@ -160,6 +158,12 @@
     <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="js/pdf-processor.js"></script>
     <script src="js/idml-processor.js"></script>
+    <script>
+        // Prevent the browser from navigating to/dropping files onto the window
+        // (without this, dropping an IDML on the page may cause the browser to open/download it)
+        window.addEventListener('dragover', function (e) { e.preventDefault(); });
+        window.addEventListener('drop', function (e) { e.preventDefault(); });
+    </script>
     <script src="js/app.js"></script>
 </body>
 </html>

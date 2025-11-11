@@ -84,10 +84,6 @@ class InDesignUpdateApp {
     // Export text for glossary
     const exportBtn = document.getElementById('exportTextBtn');
     if (exportBtn) exportBtn.addEventListener('click', () => this.exportTextForGlossary());
-
-    // Theme toggle
-    const themeToggle = document.getElementById('themeToggle');
-    if (themeToggle) themeToggle.addEventListener('click', () => this.toggleTheme());
     // (UI handlers above already wired once)
 
         // Download button

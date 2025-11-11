@@ -131,6 +131,79 @@ class IDMLProcessor {
                             const debug = this._createDebugSnippet(xmlContent, newXml) || {};
                             debug.matches = debugMatches || [];
                             debug.method = matchType || 'block-level';
+
+                            // Targeted verbose tracing for 'Introduction' (case-insensitive)
+                            try {
+                                const focus = (replacement.find || '').trim().toLowerCase();
+                                if (repOptions.debug && focus === 'introduction') {
+                                    debug._firstFound = repOptions._firstFound || null;
+                                    const contentRegex = /<Content[^>]*>([\s\S]*?)<\/Content>/g;
+                                    const charStyleRegex = /<CharacterStyleRange[^>]*>([\s\S]*?)<\/CharacterStyleRange>/g;
+                                    const contents = [];
+                                    let cm;
+                                    while ((cm = contentRegex.exec(xmlContent)) !== null) {
+                                        contents.push({ full: cm[0], inner: cm[1], index: cm.index });
+                                    }
+
+                                    debug.fullBlocks = [];
+                                    for (const dm of debug.matches || []) {
+                                        if (typeof dm.startBlock !== 'undefined') {
+                                            const sb = dm.startBlock; const eb = dm.endBlock || sb;
+                                            const blocks = [];
+                                            for (let bi = sb; bi <= eb && bi < contents.length; bi++) {
+                                                blocks.push(contents[bi] && contents[bi].full ? contents[bi].full : null);
+                                            }
+                                            debug.fullBlocks.push({ startBlock: sb, endBlock: eb, blocks });
+                                        }
+                                    }
+
+                                    // Also include CharacterStyleRange snippets if present
+                                    const csn = [];
+                                    let mm;
+                                    while ((mm = charStyleRegex.exec(xmlContent)) !== null) {
+                                        csn.push({ full: mm[0], inner: mm[1], index: mm.index });
+                                    }
+                                    debug.charStyleRanges = csn.slice(0, 20); // limit output
+                                }
+                            } catch (e) {
+                                console.warn('Failed to build targeted debug blocks:', e);
+                            }
+
+                            // Targeted verbose tracing for 'Introduction' (case-insensitive)
+                            try {
+                                const focus = (replacement.find || '').trim().toLowerCase();
+                                if (repOptions.debug && focus === 'introduction') {
+                                    const contentRegex = /<Content[^>]*>([\s\S]*?)<\/Content>/g;
+                                    const charStyleRegex = /<CharacterStyleRange[^>]*>([\s\S]*?)<\/CharacterStyleRange>/g;
+                                    const contents = [];
+                                    let cm;
+                                    while ((cm = contentRegex.exec(xmlContent)) !== null) {
+                                        contents.push({ full: cm[0], inner: cm[1], index: cm.index });
+                                    }
+
+                                    debug.fullBlocks = [];
+                                    for (const dm of debug.matches || []) {
+                                        if (typeof dm.startBlock !== 'undefined') {
+                                            const sb = dm.startBlock; const eb = dm.endBlock || sb;
+                                            const blocks = [];
+                                            for (let bi = sb; bi <= eb && bi < contents.length; bi++) {
+                                                blocks.push(contents[bi] && contents[bi].full ? contents[bi].full : null);
+                                            }
+                                            debug.fullBlocks.push({ startBlock: sb, endBlock: eb, blocks });
+                                        }
+                                    }
+
+                                    // Also include CharacterStyleRange snippets if present
+                                    const csn = [];
+                                    let mm;
+                                    while ((mm = charStyleRegex.exec(xmlContent)) !== null) {
+                                        csn.push({ full: mm[0], inner: mm[1], index: mm.index });
+                                    }
+                                    debug.charStyleRanges = csn.slice(0, 20); // limit output
+                                }
+                            } catch (e) {
+                                console.warn('Failed to build targeted debug blocks:', e);
+                            }
                             replacementLog.push({
                                 file: storyPath,
                                 original: replacement.find,

@@ -75,6 +75,31 @@ class IDMLProcessor {
 
                 const repOptions = Object.assign({}, options, replacement.options || {});
 
+                // Debug pre-scan: if debug is enabled, find and record the first
+                // story (in document order) that contains a match for this
+                // replacement. We use the single-match probe so this is
+                // non-destructive and helps explain why a later story may be
+                // chosen as the "first occurrence".
+                if (repOptions.debug) {
+                    let firstFound = null;
+                    for (const storyPath of this.storyFiles) {
+                        const storyFile = this.idmlZip.file(storyPath);
+                        if (!storyFile) continue;
+                        const xmlContent = this.modifiedFiles.has(storyPath) ? this.modifiedFiles.get(storyPath) : await storyFile.async('text');
+                        try {
+                            const probe = this.performXMLTextReplacementOnce(xmlContent, replacement.find, replacement.replace, repOptions);
+                            if (probe && probe.count > 0) {
+                                firstFound = { story: storyPath, matchType: probe.matchType || 'block-level', debugMatches: probe.debugMatches || [] };
+                                break;
+                            }
+                        } catch (e) {
+                            // ignore probe errors for debugging
+                        }
+                    }
+                    repOptions._firstFound = firstFound;
+                    if (firstFound) console.log(`[IDMLProcessor][debug-scan] first match for '${replacement.find}' in ${firstFound.story} via ${firstFound.matchType}`);
+                }
+
                 if (repOptions.replaceAll) {
                     // Replace all occurrences across all story files
                     let anyFound = false;

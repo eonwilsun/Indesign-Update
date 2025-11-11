@@ -68,11 +68,23 @@
                                 <span class="checkmark"></span>
                                 Whole words only
                             </label>
+                            <label class="checkbox-label small">
+                                <input type="checkbox" id="replaceAll1">
+                                <span class="checkmark"></span>
+                                Replace all matches
+                            </label>
                         </div>
                         <button class="remove-pair-btn" onclick="app.removePair(this)" style="display: none;">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
+                </div>
+
+                <!-- Add Another Replacement button moved above the CSV upload grid -->
+                <div style="margin-bottom:12px;">
+                    <button class="add-pair-btn" id="addPairBtn">
+                        <i class="fas fa-plus"></i> Add Another Replacement
+                    </button>
                 </div>
 
                 <div class="grid-1" id="csvUploadGrid">
@@ -90,21 +102,7 @@
                 </div>
 
                 <div class="controls">
-                    <button class="add-pair-btn" id="addPairBtn">
-                        <i class="fas fa-plus"></i> Add Another Replacement
-                    </button>
-                    
                     <div class="options">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="caseSensitive">
-                            <span class="checkmark"></span>
-                            Case sensitive
-                        </label>
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="wholeWords">
-                            <span class="checkmark"></span>
-                            Whole words only
-                        </label>
                         <button type="button" class="add-pair-btn" id="previewGlossaryBtn" style="margin-left:10px; display:none;">
                             <i class="fas fa-table"></i> Preview Glossary
                         </button>

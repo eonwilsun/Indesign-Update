@@ -276,6 +276,23 @@ class InDesignUpdateApp {
                 <label for="replaceWord${this.pairCounter}">Replace With:</label>
                 <input type="text" id="replaceWord${this.pairCounter}" placeholder="Enter replacement word">
             </div>
+            <div class="pair-options">
+                <label class="checkbox-label small">
+                    <input type="checkbox" id="caseSensitive${this.pairCounter}">
+                    <span class="checkmark"></span>
+                    Case sensitive
+                </label>
+                <label class="checkbox-label small">
+                    <input type="checkbox" id="wholeWords${this.pairCounter}">
+                    <span class="checkmark"></span>
+                    Whole words only
+                </label>
+                <label class="checkbox-label small">
+                    <input type="checkbox" id="replaceAll${this.pairCounter}">
+                    <span class="checkmark"></span>
+                    Replace all matches
+                </label>
+            </div>
             <button class="remove-pair-btn" onclick="app.removePair(this)">
                 <i class="fas fa-trash"></i>
             </button>
@@ -325,7 +342,7 @@ class InDesignUpdateApp {
 
         // Add input listeners to update button state dynamically
         document.addEventListener('input', (e) => {
-            if (e.target.matches('input[id^="findWord"], input[id^="replaceWord"], input[id^="caseSensitive"], input[id^="wholeWords"], #glossaryFile')) {
+            if (e.target.matches('input[id^="findWord"], input[id^="replaceWord"], input[id^="caseSensitive"], input[id^="wholeWords"], input[id^="replaceAll"], #glossaryFile')) {
                 this.updateProcessButtonState();
             }
         });
@@ -419,21 +436,18 @@ class InDesignUpdateApp {
             // Build replacements: prefer CSV replacements if present, otherwise use manual pairs
             let replacements = [];
             if (this.csvReplacements && this.csvReplacements.length) {
-                // Attach global options to CSV replacements (CSV rows don't carry per-row options)
-                const globalOptions = {
-                    caseSensitive: document.getElementById('caseSensitive').checked,
-                    wholeWords: document.getElementById('wholeWords').checked
-                };
-                replacements = this.csvReplacements.map(r => ({ find: r.find, replace: r.replace, options: Object.assign({}, globalOptions) }));
+                // CSV rows don't carry per-row options. Use empty options for CSV
+                // replacements (per-pair options are available for manual pairs).
+                replacements = this.csvReplacements.map(r => ({ find: r.find, replace: r.replace, options: {} }));
             } else {
                 replacements = this.getReplacementPairs();
                 if (replacements.length === 0) throw new Error('Please add at least one replacement pair or upload a CSV with current,replace headers');
             }
 
-            // Get options (include replaceAll flag)
+            // Get options (global defaults). Global case/whole checkboxes were
+            // removed in favor of per-pair controls, so only include replaceAll
+            // (which comes from the Replace All button state).
             const options = {
-                caseSensitive: document.getElementById('caseSensitive').checked,
-                wholeWords: document.getElementById('wholeWords').checked,
                 replaceAll: !!replaceAll
             };
 
@@ -480,14 +494,16 @@ class InDesignUpdateApp {
             const replaceInput = pair.querySelector('input[id^="replaceWord"]');
             const csInput = pair.querySelector('input[id^="caseSensitive"]');
             const wwInput = pair.querySelector('input[id^="wholeWords"]');
+            const raInput = pair.querySelector('input[id^="replaceAll"]');
 
             const find = findInput ? findInput.value.trim() : '';
             const replace = replaceInput ? replaceInput.value.trim() : '';
             const caseSensitive = csInput ? csInput.checked : false;
             const wholeWords = wwInput ? wwInput.checked : false;
+            const replaceAll = raInput ? raInput.checked : false;
 
             if (find && replace) {
-                pairs.push({ find, replace, options: { caseSensitive, wholeWords } });
+                pairs.push({ find, replace, options: { caseSensitive, wholeWords, replaceAll } });
             }
         });
         
@@ -569,6 +585,23 @@ class InDesignUpdateApp {
                     <label for="replaceWord1">Replace With:</label>
                     <input type="text" id="replaceWord1" placeholder="Enter replacement word">
                 </div>
+                <div class="pair-options">
+                    <label class="checkbox-label small">
+                        <input type="checkbox" id="caseSensitive1">
+                        <span class="checkmark"></span>
+                        Case sensitive
+                    </label>
+                    <label class="checkbox-label small">
+                        <input type="checkbox" id="wholeWords1">
+                        <span class="checkmark"></span>
+                        Whole words only
+                    </label>
+                    <label class="checkbox-label small">
+                        <input type="checkbox" id="replaceAll1">
+                        <span class="checkmark"></span>
+                        Replace all matches
+                    </label>
+                </div>
                 <button class="remove-pair-btn" onclick="app.removePair(this)" style="display: none;">
                     <i class="fas fa-trash"></i>
                 </button>
@@ -577,9 +610,7 @@ class InDesignUpdateApp {
         
         this.pairCounter = 1;
         
-        // Reset checkboxes
-        document.getElementById('caseSensitive').checked = false;
-        document.getElementById('wholeWords').checked = false;
+    // No global checkboxes - per-pair checkboxes used
         
         // Re-setup validation
         this.setupInputValidation();

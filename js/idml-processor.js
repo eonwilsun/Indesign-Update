@@ -259,19 +259,42 @@ class IDMLProcessor {
     // text and map matches back to original indices so replacements preserve XML
     // structure. If firstOnly is true, only the first match is replaced.
     _normalizedReplace(originalText, findText, replaceText, options = {}, firstOnly = false) {
-        // Build normalized text and mapping from normalized indices back to original
+        const opts = Object.assign({ caseSensitive: false, wholeWords: false }, options || {});
+
+        // Unescape common XML entities and build mapping from unescaped indices
+        // back to original string indices. This handles cases where XML stores
+        // '&' as '&amp;' etc.
+        const unescapeWithMap = (str) => {
+            const out = [];
+            const mapUnesc = [];
+            let i = 0;
+            while (i < str.length) {
+                if (str[i] === '&') {
+                    const rest = str.slice(i);
+                    if (rest.startsWith('&amp;')) { out.push('&'); mapUnesc.push(i); i += 5; continue; }
+                    if (rest.startsWith('&lt;')) { out.push('<'); mapUnesc.push(i); i += 4; continue; }
+                    if (rest.startsWith('&gt;')) { out.push('>'); mapUnesc.push(i); i += 4; continue; }
+                    if (rest.startsWith('&quot;')) { out.push('"'); mapUnesc.push(i); i += 6; continue; }
+                    if (rest.startsWith('&apos;')) { out.push('\''); mapUnesc.push(i); i += 6; continue; }
+                }
+                out.push(str[i]); mapUnesc.push(i); i++;
+            }
+            return { unescaped: out.join(''), mapUnesc };
+        };
+
+        const { unescaped, mapUnesc } = unescapeWithMap(originalText);
+
+        // Build normalized text and mapping from normalized indices back to
+        // unescaped indices.
         const buildNormalized = (str) => {
             const normChars = [];
-            const map = []; // map[normIndex] = origIndex
+            const map = []; // map[normIndex] = sourceIndex (in unescaped string)
             let i = 0;
             while (i < str.length) {
                 const ch = str[i];
                 if (/[\s\u00A0]/.test(ch)) {
-                    // collapse any sequence of whitespace into a single space
-                    let j = i;
-                    while (j < str.length && /[\s\u00A0]/.test(str[j])) j++;
+                    let j = i; while (j < str.length && /[\s\u00A0]/.test(str[j])) j++;
                     normChars.push(' ');
-                    // map this normIndex to the start index of the whitespace run
                     map.push(i);
                     i = j;
                 } else {
@@ -283,53 +306,43 @@ class IDMLProcessor {
             return { norm: normChars.join(''), map };
         };
 
-        const opts = Object.assign({ caseSensitive: false, wholeWords: false }, options || {});
-
-        const { norm: normOrig, map } = buildNormalized(originalText);
+        const { norm: normUnesc, map: mapNormToUnesc } = buildNormalized(unescaped);
         const normFind = findText.replace(/[\s\u00A0]+/g, ' ').trim();
 
-        let searchOrig = normOrig;
+        let searchOrig = normUnesc;
         let searchFind = normFind;
         if (!opts.caseSensitive) {
-            searchOrig = normOrig.toLowerCase();
+            searchOrig = normUnesc.toLowerCase();
             searchFind = normFind.toLowerCase();
         }
 
         const matches = [];
-
         if (opts.wholeWords) {
-            // Build a word-boundary regex on the normalized find text
             const re = new RegExp('\\b' + this.escapeRegExp(searchFind) + '\\b', opts.caseSensitive ? 'g' : 'gi');
-            let m;
-            const execSource = opts.caseSensitive ? normOrig : normOrig.toLowerCase();
+            let m; const execSource = opts.caseSensitive ? normUnesc : normUnesc.toLowerCase();
             while ((m = re.exec(execSource)) !== null) {
-                matches.push({ start: m.index, end: m.index + m[0].length });
-                if (firstOnly) break;
+                matches.push({ start: m.index, end: m.index + m[0].length }); if (firstOnly) break;
             }
         } else {
-            // Simple substring search on normalized text
-            let idx = 0;
-            while (true) {
+            let idx = 0; while (true) {
                 const foundAt = searchOrig.indexOf(searchFind, idx);
-                if (foundAt === -1) break;
-                matches.push({ start: foundAt, end: foundAt + searchFind.length });
-                if (firstOnly) break;
-                idx = foundAt + searchFind.length;
+                if (foundAt === -1) break; matches.push({ start: foundAt, end: foundAt + searchFind.length });
+                if (firstOnly) break; idx = foundAt + searchFind.length;
             }
         }
 
         if (matches.length === 0) return { newText: originalText, replacementCount: 0 };
 
-        // Map normalized matches back to original ranges and perform replacements
-        // Replace from last to first to keep indices valid
-        let newText = originalText;
-        let total = 0;
+        // Map normalized matches back to original indices using two-step mapping:
+        // normIndex -> unescapedIndex -> originalIndex
+        let newText = originalText; let total = 0;
         for (let i = matches.length - 1; i >= 0; i--) {
             const m = matches[i];
-            const origStart = map[m.start];
-            const origEnd = map[m.end - 1] + 1; // inclusive
-            newText = newText.slice(0, origStart) + replaceText + newText.slice(origEnd);
-            total++;
+            const unescStartIndex = mapNormToUnesc[m.start];
+            const unescEndIndex = (m.end < mapNormToUnesc.length) ? mapNormToUnesc[m.end] : (unescaped.length);
+            const origStart = mapUnesc[unescStartIndex];
+            const origEnd = (unescEndIndex < mapUnesc.length) ? mapUnesc[unescEndIndex] : originalText.length;
+            newText = newText.slice(0, origStart) + replaceText + newText.slice(origEnd); total++;
         }
 
         return { newText, replacementCount: total };

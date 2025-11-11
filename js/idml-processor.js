@@ -179,6 +179,20 @@ class IDMLProcessor {
             return match.replace(charContent, updatedCharContent);
         });
 
+        // If no replacements were found inside individual Content blocks,
+        // attempt a pragmatic cross-block replacement fallback: try to match
+        // the findText across adjacent <Content> blocks (useful for
+        // multi-paragraph/heading spans). This inserts the replacement into
+        // the first matched block and clears the consumed text from subsequent
+        // blocks to avoid touching XML tags.
+        if (count === 0) {
+            const crossResult = this._replaceAcrossContentBlocks(xmlContent, findText, replaceText, options, /* firstOnly */ false);
+            if (crossResult.count > 0) {
+                newXml = crossResult.newXml;
+                count += crossResult.count;
+            }
+        }
+
         return { newXml, count };
     }
 
@@ -235,6 +249,15 @@ class IDMLProcessor {
 
                 return match.replace(charContent, updatedCharContent);
             });
+        }
+
+        // If still not replaced, try cross-block single replacement fallback
+        if (count === 0) {
+            const crossResult = this._replaceAcrossContentBlocks(xmlContent, findText, replaceText, options, /* firstOnly */ true);
+            if (crossResult.count > 0) {
+                newXml = crossResult.newXml;
+                count += crossResult.count;
+            }
         }
 
         return { newXml, count };
@@ -346,6 +369,156 @@ class IDMLProcessor {
         }
 
         return { newText, replacementCount: total };
+    }
+
+    // Attempt to find and replace findText that spans across multiple adjacent
+    // <Content> blocks in a story XML. This is a pragmatic fallback that
+    // writes the replacement into the first involved block and clears the
+    // consumed ranges from subsequent blocks to avoid touching XML tags.
+    _replaceAcrossContentBlocks(xmlContent, findText, replaceText, options = {}, firstOnly = false) {
+        const contentRegex = /<Content[^>]*>(.*?)<\/Content>/gs;
+        const blocks = [];
+
+        let m;
+        while ((m = contentRegex.exec(xmlContent)) !== null) {
+            const fullMatch = m[0];
+            const inner = m[1];
+            const matchStart = m.index;
+            // compute inner start (after the first '>') and inner end (before the last '<')
+            const innerStartRel = fullMatch.indexOf('>') + 1;
+            const innerStart = matchStart + innerStartRel;
+            const innerEnd = matchStart + fullMatch.lastIndexOf('<');
+            blocks.push({ inner, innerStart, innerEnd, fullStart: matchStart, fullEnd: matchStart + fullMatch.length });
+        }
+
+        if (blocks.length === 0) return { newXml: xmlContent, count: 0 };
+
+        // Build combined unescaped text and mapping back to block/inner indices
+        const combinedChars = [];
+        const combinedMap = []; // each entry: {blockIndex, innerIndex}
+
+        // helper to unescape common entities for a block and map
+        const unescapeWithMap = (str, blockIndex) => {
+            const out = [];
+            const map = [];
+            let i = 0;
+            while (i < str.length) {
+                if (str[i] === '&') {
+                    const rest = str.slice(i);
+                    if (rest.startsWith('&amp;')) { out.push('&'); map.push({ blockIndex, innerIndex: i }); i += 5; continue; }
+                    if (rest.startsWith('&lt;')) { out.push('<'); map.push({ blockIndex, innerIndex: i }); i += 4; continue; }
+                    if (rest.startsWith('&gt;')) { out.push('>'); map.push({ blockIndex, innerIndex: i }); i += 4; continue; }
+                    if (rest.startsWith('&quot;')) { out.push('"'); map.push({ blockIndex, innerIndex: i }); i += 6; continue; }
+                    if (rest.startsWith('&apos;')) { out.push('\''); map.push({ blockIndex, innerIndex: i }); i += 6; continue; }
+                }
+                out.push(str[i]); map.push({ blockIndex, innerIndex: i }); i++;
+            }
+            return { out: out.join(''), map };
+        };
+
+        for (let bi = 0; bi < blocks.length; bi++) {
+            const b = blocks[bi];
+            const { out, map } = unescapeWithMap(b.inner, bi);
+            for (let i = 0; i < out.length; i++) {
+                combinedChars.push(out[i]);
+                combinedMap.push(map[i]);
+            }
+            // insert a single space separator between blocks
+            combinedChars.push(' ');
+            combinedMap.push(null);
+        }
+
+        // Build normalized combined string and normalized map
+        const combined = combinedChars.join('');
+        const normChars = [];
+        const normMap = [];
+        let i = 0;
+        while (i < combined.length) {
+            const ch = combined[i];
+            if (/[\s\u00A0]/.test(ch)) {
+                let j = i;
+                while (j < combined.length && /[\s\u00A0]/.test(combined[j])) j++;
+                normChars.push(' ');
+                normMap.push(combinedMap[i]);
+                i = j;
+            } else {
+                normChars.push(ch);
+                normMap.push(combinedMap[i]);
+                i++;
+            }
+        }
+        const normCombined = normChars.join('');
+
+        // Prepare search term normalized (and case handling)
+        let normFind = findText.replace(/[\s\u00A0]+/g, ' ').trim();
+        let searchSource = normCombined;
+        let searchTerm = normFind;
+        if (!options.caseSensitive) { searchSource = normCombined.toLowerCase(); searchTerm = normFind.toLowerCase(); }
+
+        const matches = [];
+        if (options.wholeWords) {
+            const re = new RegExp('\\b' + this.escapeRegExp(searchTerm) + '\\b', options.caseSensitive ? 'g' : 'gi');
+            let mm;
+            while ((mm = re.exec(searchSource)) !== null) {
+                matches.push({ start: mm.index, end: mm.index + mm[0].length });
+                if (firstOnly) break;
+            }
+        } else {
+            let idx = 0;
+            while (true) {
+                const at = searchSource.indexOf(searchTerm, idx);
+                if (at === -1) break;
+                matches.push({ start: at, end: at + searchTerm.length });
+                if (firstOnly) break;
+                idx = at + searchTerm.length;
+            }
+        }
+
+        if (matches.length === 0) return { newXml: xmlContent, count: 0 };
+
+        // For each match (or only first), map back to blocks and perform replacements
+        let newXml = xmlContent;
+        let total = 0;
+        for (let mi = matches.length - 1; mi >= 0; mi--) {
+            const match = matches[mi];
+            const startMapEntry = normMap[match.start];
+            const endMapEntry = normMap[match.end - 1];
+            if (!startMapEntry || !endMapEntry) continue;
+
+            const startBlock = startMapEntry.blockIndex;
+            const startInner = startMapEntry.innerIndex;
+            const endBlock = endMapEntry.blockIndex;
+            const endInner = endMapEntry.innerIndex + 1; // exclusive
+
+            // Unescape the preserved slices so we don't double-escape existing
+            // XML entities when we re-escape the final combined string.
+            const preUnesc = this._unescapeForXML(blocks[startBlock].inner.slice(0, startInner));
+            const postUnesc = this._unescapeForXML(blocks[endBlock].inner.slice(endInner));
+            const newStartInner = preUnesc + replaceText + postUnesc;
+
+            // Replace in xml by reconstructing the first full Content element and
+            // dropping the full elements for the intervening blocks. We escape
+            // the replacement for XML safety.
+            const before = newXml.slice(0, blocks[startBlock].fullStart);
+            const after = newXml.slice(blocks[endBlock].fullEnd);
+            const middle = `<Content>${this._escapeForXML(newStartInner)}<\/Content>`;
+            newXml = before + middle + after;
+
+            total++;
+            if (firstOnly) break;
+        }
+
+        return { newXml, count: total };
+    }
+
+    // Escape text for safe insertion back into XML Content elements
+    _escapeForXML(text) {
+        return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+    }
+
+    // Unescape common XML entities to their character equivalents
+    _unescapeForXML(text) {
+        return text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
     }
 
     async createModifiedIDML() {

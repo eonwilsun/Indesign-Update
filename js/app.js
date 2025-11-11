@@ -5,6 +5,7 @@ class InDesignUpdateApp {
         this.fileType = null;
         this.pdfProcessor = new PDFProcessor();
         this.idmlProcessor = new IDMLProcessor();
+        this.parsedCsvRows = null; // temporary parsed CSV preview buffer (awaiting user accept)
         this.pairCounter = 1;
         this.mode = 'replace';
         
@@ -48,13 +49,21 @@ class InDesignUpdateApp {
                                 const rows = parsed.data || [];
                                 // If header contains current & replace, build csvReplacements
                                 if (header.includes('current') && header.includes('replace')) {
+                                    // Store parsed rows for preview; require explicit Accept
                                     const curKey = parsed.meta.fields.find(h => (h||'').trim().toLowerCase() === 'current');
                                     const repKey = parsed.meta.fields.find(h => (h||'').trim().toLowerCase() === 'replace');
-                                    this.csvReplacements = rows.map(r => ({ find: (r[curKey]||'').toString(), replace: (r[repKey]||'').toString() })).filter(p => p.find && p.replace);
-                                    this._updateGlossaryStatus(`Loaded CSV replacements: ${this.csvReplacements.length} pairs`);
+                                    this.parsedCsvRows = rows.map(r => ({ find: (r[curKey]||'').toString(), replace: (r[repKey]||'').toString() })).filter(p => p.find && p.replace);
+                                    this._updateGlossaryStatus(`Parsed CSV: ${this.parsedCsvRows.length} pairs — preview and click Accept to use`);
+                                    // Show preview and accept/reject buttons
+                                    const previewBtn = document.getElementById('previewGlossaryBtn');
+                                    const acceptBtn = document.getElementById('acceptCsvBtn');
+                                    const rejectBtn = document.getElementById('rejectCsvBtn');
+                                    if (previewBtn) previewBtn.style.display = 'inline-block';
+                                    if (acceptBtn) acceptBtn.style.display = 'inline-block';
+                                    if (rejectBtn) rejectBtn.style.display = 'inline-block';
                                 } else {
                                     // We only accept CSVs with 'current' and 'replace' headers for direct replacements.
-                                    this.csvReplacements = null;
+                                    this.parsedCsvRows = null;
                                     e.target.value = '';
                                     this._updateGlossaryStatus('CSV must include header columns: current, replace');
                                     this.showError('CSV must include header columns: current, replace');
@@ -80,6 +89,35 @@ class InDesignUpdateApp {
     // Preview glossary / CSV
     const previewBtn = document.getElementById('previewGlossaryBtn');
     if (previewBtn) previewBtn.addEventListener('click', () => this.previewGlossary());
+
+    const acceptBtn = document.getElementById('acceptCsvBtn');
+    if (acceptBtn) acceptBtn.addEventListener('click', () => {
+        if (Array.isArray(this.parsedCsvRows) && this.parsedCsvRows.length) {
+            this.csvReplacements = this.parsedCsvRows;
+            this.parsedCsvRows = null;
+            this._updateGlossaryStatus(`Accepted CSV replacements: ${this.csvReplacements.length} pairs`);
+            // hide accept/reject
+            const accept = document.getElementById('acceptCsvBtn');
+            const reject = document.getElementById('rejectCsvBtn');
+            if (accept) accept.style.display = 'none';
+            if (reject) reject.style.display = 'none';
+        }
+    });
+
+    const rejectBtn = document.getElementById('rejectCsvBtn');
+    if (rejectBtn) rejectBtn.addEventListener('click', () => {
+        // clear parsed CSV and reset input
+        this.parsedCsvRows = null;
+        const glossaryInput = document.getElementById('glossaryFile');
+        if (glossaryInput) glossaryInput.value = '';
+        this._updateGlossaryStatus('CSV rejected. Upload another CSV if needed.');
+        const accept = document.getElementById('acceptCsvBtn');
+        const reject = document.getElementById('rejectCsvBtn');
+        if (accept) accept.style.display = 'none';
+        if (reject) reject.style.display = 'none';
+        const preview = document.getElementById('glossaryPreview');
+        if (preview) preview.style.display = 'none';
+    });
 
     // Export text for glossary
     const exportBtn = document.getElementById('exportTextBtn');
@@ -302,6 +340,30 @@ class InDesignUpdateApp {
     previewGlossary() {
         const container = document.getElementById('glossaryPreview');
         container.innerHTML = '';
+
+        // Prefer showing parsed (unaccepted) CSV preview first so user can Accept/Reject
+        if (this.parsedCsvRows && this.parsedCsvRows.length) {
+            const table = document.createElement('table');
+            table.className = 'preview-table-inner';
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            const thCur = document.createElement('th'); thCur.textContent = 'Current'; headerRow.appendChild(thCur);
+            const thRep = document.createElement('th'); thRep.textContent = 'Replace With'; headerRow.appendChild(thRep);
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            const tbody = document.createElement('tbody');
+            for (const r of this.parsedCsvRows.slice(0,50)) {
+                const tr = document.createElement('tr');
+                const td1 = document.createElement('td'); td1.textContent = r.find; tr.appendChild(td1);
+                const td2 = document.createElement('td'); td2.textContent = r.replace; tr.appendChild(td2);
+                tbody.appendChild(tr);
+            }
+            table.appendChild(tbody);
+            container.appendChild(table);
+            container.style.display = 'block';
+            // show accept/reject - handled elsewhere
+            return;
+        }
 
         if (this.csvReplacements && this.csvReplacements.length) {
             // Render CSV replacements preview

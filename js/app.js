@@ -101,6 +101,8 @@ class InDesignUpdateApp {
             const reject = document.getElementById('rejectCsvBtn');
             if (accept) accept.style.display = 'none';
             if (reject) reject.style.display = 'none';
+            // Update Process button state now that CSV is accepted
+            if (typeof this.updateProcessButtonState === 'function') this.updateProcessButtonState();
         }
     });
 
@@ -117,6 +119,8 @@ class InDesignUpdateApp {
         if (reject) reject.style.display = 'none';
         const preview = document.getElementById('glossaryPreview');
         if (preview) preview.style.display = 'none';
+        // Update Process button state after rejection
+        if (typeof this.updateProcessButtonState === 'function') this.updateProcessButtonState();
     });
 
     // Export text for glossary
@@ -203,6 +207,8 @@ class InDesignUpdateApp {
             const previewBtn = document.getElementById('previewGlossaryBtn');
             if (exportBtn) exportBtn.style.display = 'inline-block';
             if (previewBtn) previewBtn.style.display = 'inline-block';
+            // Update Process button state now that a file is loaded
+            if (typeof this.updateProcessButtonState === 'function') this.updateProcessButtonState();
 
         } catch (error) {
             this.hideLoading();

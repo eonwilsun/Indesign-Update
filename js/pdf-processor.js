@@ -86,69 +86,131 @@ class PDFProcessor {
             // Embed a fallback font for measuring/drawing replacement text
             const helveticaFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
 
-            // Process each page
-            for (let pageIndex = 0; pageIndex < textContent.length; pageIndex++) {
-                const pageData = textContent[pageIndex];
-                const page = pages[pageIndex];
-                
-                // Group text items by approximate line
-                const lines = this.groupTextIntoLines(pageData.textItems);
-                
-                for (const line of lines) {
-                        for (const replacement of replacements) {
-                        if (!replacement.find || !replacement.replace) continue;
-                        const repOptions = Object.assign({}, options, replacement.options || {});
-                        
-                        const { found, newText } = this.performTextReplacement(
-                            line.text, 
-                            replacement.find, 
-                            replacement.replace, 
-                            repOptions
-                        );
-                        
-                        if (found) {
-                            // Calculate position for replacement text
-                            const textPosition = this.calculateTextPosition(line);
-                            // Use measured width from embedded font to size the cover rectangle
-                            const fontSize = Math.max(8, line.fontSize || 10);
-                            const textWidth = helveticaFont.widthOfTextAtSize(newText, fontSize);
-                            const paddingX = 6; // horizontal padding to cover adjacent glyphs
-                            const paddingY = 4; // vertical padding
+            // Process replacements one-by-one so we can choose first-match-per-row
+            // or replace-all semantics per replacement.
+            for (const replacement of replacements) {
+                if (!replacement.find || !replacement.replace) continue;
+                const repOptions = Object.assign({}, options, replacement.options || {});
 
-                            const rectX = Math.max(0, textPosition.x - paddingX);
-                            const rectY = Math.max(0, textPosition.y - paddingY);
-                            const rectWidth = Math.max(textPosition.width, textWidth) + paddingX * 2;
-                            const rectHeight = (textPosition.height || fontSize) + paddingY * 2;
+                if (repOptions.replaceAll) {
+                    // Replace all occurrences across all pages/lines
+                    for (let pageIndex = 0; pageIndex < textContent.length; pageIndex++) {
+                        const pageData = textContent[pageIndex];
+                        const page = pages[pageIndex];
+                        const lines = this.groupTextIntoLines(pageData.textItems);
 
-                            // Cover the original text with a background rectangle (assume white page)
-                            page.drawRectangle({
-                                x: rectX,
-                                y: rectY,
-                                width: rectWidth,
-                                height: rectHeight,
-                                color: PDFLib.rgb(1, 1, 1), // White
-                            });
+                        for (const line of lines) {
+                            const { found, newText, count } = this.performTextReplacement(
+                                line.text,
+                                replacement.find,
+                                replacement.replace,
+                                Object.assign({}, repOptions, { replaceAll: true })
+                            );
 
-                            // Draw the new text using the embedded font. Align RTL by measuring width.
-                            const isRTL = this.isRTLLanguage(options?.targetLang);
-                            const drawX = isRTL ? Math.max(0, textPosition.x + textPosition.width - textWidth) : textPosition.x;
-                            const drawY = textPosition.y;
+                            if (found && count > 0) {
+                                const textPosition = this.calculateTextPosition(line);
+                                const fontSize = Math.max(8, line.fontSize || 10);
+                                const textWidth = helveticaFont.widthOfTextAtSize(newText, fontSize);
+                                const paddingX = 6;
+                                const paddingY = 4;
 
-                            page.drawText(newText, {
-                                x: drawX,
-                                y: drawY,
-                                size: fontSize,
-                                font: helveticaFont,
-                                color: PDFLib.rgb(0, 0, 0),
-                            });
-                            
-                            totalReplacements++;
-                            replacementLog.push({
-                                page: pageIndex + 1,
-                                original: replacement.find,
-                                replacement: replacement.replace,
-                                position: textPosition
-                            });
+                                const rectX = Math.max(0, textPosition.x - paddingX);
+                                const rectY = Math.max(0, textPosition.y - paddingY);
+                                const rectWidth = Math.max(textPosition.width, textWidth) + paddingX * 2;
+                                const rectHeight = (textPosition.height || fontSize) + paddingY * 2;
+
+                                page.drawRectangle({
+                                    x: rectX,
+                                    y: rectY,
+                                    width: rectWidth,
+                                    height: rectHeight,
+                                    color: PDFLib.rgb(1, 1, 1),
+                                });
+
+                                const isRTL = this.isRTLLanguage(options?.targetLang);
+                                const drawX = isRTL ? Math.max(0, textPosition.x + textPosition.width - textWidth) : textPosition.x;
+                                const drawY = textPosition.y;
+
+                                page.drawText(newText, {
+                                    x: drawX,
+                                    y: drawY,
+                                    size: fontSize,
+                                    font: helveticaFont,
+                                    color: PDFLib.rgb(0, 0, 0),
+                                });
+
+                                totalReplacements += count;
+                                replacementLog.push({
+                                    page: pageIndex + 1,
+                                    original: replacement.find,
+                                    replacement: replacement.replace,
+                                    position: textPosition,
+                                    count
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    // Find and replace only the first occurrence in the document
+                    let foundOne = false;
+                    for (let pageIndex = 0; pageIndex < textContent.length && !foundOne; pageIndex++) {
+                        const pageData = textContent[pageIndex];
+                        const page = pages[pageIndex];
+                        const lines = this.groupTextIntoLines(pageData.textItems);
+
+                        for (const line of lines) {
+                            const { found, newText, count } = this.performTextReplacement(
+                                line.text,
+                                replacement.find,
+                                replacement.replace,
+                                Object.assign({}, repOptions, { replaceAll: false })
+                            );
+
+                            if (found && count > 0) {
+                                const textPosition = this.calculateTextPosition(line);
+                                const fontSize = Math.max(8, line.fontSize || 10);
+                                const textWidth = helveticaFont.widthOfTextAtSize(newText, fontSize);
+                                const paddingX = 6;
+                                const paddingY = 4;
+
+                                const rectX = Math.max(0, textPosition.x - paddingX);
+                                const rectY = Math.max(0, textPosition.y - paddingY);
+                                const rectWidth = Math.max(textPosition.width, textWidth) + paddingX * 2;
+                                const rectHeight = (textPosition.height || fontSize) + paddingY * 2;
+
+                                page.drawRectangle({
+                                    x: rectX,
+                                    y: rectY,
+                                    width: rectWidth,
+                                    height: rectHeight,
+                                    color: PDFLib.rgb(1, 1, 1),
+                                });
+
+                                const isRTL = this.isRTLLanguage(options?.targetLang);
+                                const drawX = isRTL ? Math.max(0, textPosition.x + textPosition.width - textWidth) : textPosition.x;
+                                const drawY = textPosition.y;
+
+                                page.drawText(newText, {
+                                    x: drawX,
+                                    y: drawY,
+                                    size: fontSize,
+                                    font: helveticaFont,
+                                    color: PDFLib.rgb(0, 0, 0),
+                                });
+
+                                totalReplacements += count;
+                                replacementLog.push({
+                                    page: pageIndex + 1,
+                                    original: replacement.find,
+                                    replacement: replacement.replace,
+                                    position: textPosition,
+                                    count
+                                });
+
+                                // stop searching for this replacement and move to next replacement
+                                foundOne = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -228,24 +290,58 @@ class PDFProcessor {
         
         let found = false;
         let newText = text;
-        
+        let count = 0;
+
         if (options.wholeWords) {
-            const regex = new RegExp(`\\b${this.escapeRegExp(searchText)}\\b`, 
-                options.caseSensitive ? 'g' : 'gi');
-            if (regex.test(targetText)) {
-                found = true;
-                newText = text.replace(regex, replaceText);
+            // Use different flags based on whether we replace all occurrences
+            if (options.replaceAll) {
+                const countRegex = new RegExp(`\\b${this.escapeRegExp(searchText)}\\b`, options.caseSensitive ? 'g' : 'gi');
+                const matches = targetText.match(countRegex);
+                count = matches ? matches.length : 0;
+                if (count > 0) {
+                    found = true;
+                    const replaceRegex = new RegExp(`\\b${this.escapeRegExp(searchText)}\\b`, options.caseSensitive ? 'g' : 'gi');
+                    newText = text.replace(replaceRegex, replaceText);
+                }
+            } else {
+                const firstRegex = new RegExp(`\\b${this.escapeRegExp(searchText)}\\b`, options.caseSensitive ? '' : 'i');
+                if (firstRegex.test(targetText)) {
+                    found = true;
+                    count = 1;
+                    newText = text.replace(firstRegex, replaceText);
+                }
             }
         } else {
-            if (targetText.includes(searchText)) {
-                found = true;
-                const regex = new RegExp(this.escapeRegExp(findText), 
-                    options.caseSensitive ? 'g' : 'gi');
-                newText = text.replace(regex, replaceText);
+            if (options.replaceAll) {
+                const countRegex = new RegExp(this.escapeRegExp(findText), options.caseSensitive ? 'g' : 'gi');
+                const matches = targetText.match(countRegex);
+                count = matches ? matches.length : 0;
+                if (count > 0) {
+                    found = true;
+                    const replaceRegex = new RegExp(this.escapeRegExp(findText), options.caseSensitive ? 'g' : 'gi');
+                    newText = text.replace(replaceRegex, replaceText);
+                }
+            } else {
+                // Replace only the first occurrence
+                if (!options.caseSensitive) {
+                    const idx = targetText.indexOf(searchText);
+                    if (idx !== -1) {
+                        found = true;
+                        count = 1;
+                        newText = text.slice(0, idx) + replaceText + text.slice(idx + searchText.length);
+                    }
+                } else {
+                    const idx = text.indexOf(findText);
+                    if (idx !== -1) {
+                        found = true;
+                        count = 1;
+                        newText = text.slice(0, idx) + replaceText + text.slice(idx + findText.length);
+                    }
+                }
             }
         }
-        
-        return { found, newText };
+
+        return { found, newText, count };
     }
 
     calculateTextPosition(line) {

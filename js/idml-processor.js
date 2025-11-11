@@ -35,49 +35,85 @@ class IDMLProcessor {
             let totalReplacements = 0;
             const replacementLog = [];
 
-            // New behavior: iterate replacements in order (CSV rows), and for each
-            // replacement find and replace only the first occurrence in the IDML
-            // (search story files in the order found). This ensures row-order
-            // precedence and single-replacement-per-row.
+            // Iterate replacements in order (CSV rows). By default, we perform
+            // first-occurrence-per-row semantics (search stories in order and stop
+            // after the first found). If options.replaceAll (or per-replacement
+            // replacement.options.replaceAll) is true, then we replace all
+            // occurrences across all story files for that replacement.
             for (const replacement of replacements) {
                 if (!replacement.find || !replacement.replace) continue;
 
                 const repOptions = Object.assign({}, options, replacement.options || {});
 
-                let replaced = false;
+                if (repOptions.replaceAll) {
+                    // Replace all occurrences across all story files
+                    let anyFound = false;
+                    for (const storyPath of this.storyFiles) {
+                        const storyFile = this.idmlZip.file(storyPath);
+                        if (!storyFile) continue;
 
-                for (const storyPath of this.storyFiles) {
-                    const storyFile = this.idmlZip.file(storyPath);
-                    if (!storyFile) continue;
+                        const xmlContent = await storyFile.async('text');
 
-                    const xmlContent = await storyFile.async('text');
+                        const { newXml, count } = this.performXMLTextReplacement(
+                            xmlContent,
+                            replacement.find,
+                            replacement.replace,
+                            repOptions
+                        );
 
-                    // Try to replace only the first match inside this story
-                    const { newXml, count } = this.performXMLTextReplacementOnce(
-                        xmlContent,
-                        replacement.find,
-                        replacement.replace,
-                        repOptions
-                    );
-
-                    if (count > 0) {
-                        // Store modified content for this story
-                        this.modifiedFiles.set(storyPath, newXml);
-                        totalReplacements += count;
-                        replacementLog.push({
-                            file: storyPath,
-                            original: replacement.find,
-                            replacement: replacement.replace,
-                            count: count
-                        });
-                        console.log(`[IDMLProcessor] Replaced first occurrence for '${replacement.find}' in ${storyPath}`);
-                        replaced = true;
-                        break; // move to next CSV row
+                        if (count > 0) {
+                            this.modifiedFiles.set(storyPath, newXml);
+                            totalReplacements += count;
+                            replacementLog.push({
+                                file: storyPath,
+                                original: replacement.find,
+                                replacement: replacement.replace,
+                                count: count
+                            });
+                            console.log(`[IDMLProcessor] Replaced ${count} occurrence(s) for '${replacement.find}' in ${storyPath}`);
+                            anyFound = true;
+                        }
                     }
-                }
 
-                if (!replaced) {
-                    console.log(`[IDMLProcessor] No occurrence found for '${replacement.find}'`);
+                    if (!anyFound) {
+                        console.log(`[IDMLProcessor] No occurrence found for '${replacement.find}' (replaceAll)`);
+                    }
+                } else {
+                    // Old behavior: replace only the first occurrence (search stories in order)
+                    let replaced = false;
+                    for (const storyPath of this.storyFiles) {
+                        const storyFile = this.idmlZip.file(storyPath);
+                        if (!storyFile) continue;
+
+                        const xmlContent = await storyFile.async('text');
+
+                        // Try to replace only the first match inside this story
+                        const { newXml, count } = this.performXMLTextReplacementOnce(
+                            xmlContent,
+                            replacement.find,
+                            replacement.replace,
+                            repOptions
+                        );
+
+                        if (count > 0) {
+                            // Store modified content for this story
+                            this.modifiedFiles.set(storyPath, newXml);
+                            totalReplacements += count;
+                            replacementLog.push({
+                                file: storyPath,
+                                original: replacement.find,
+                                replacement: replacement.replace,
+                                count: count
+                            });
+                            console.log(`[IDMLProcessor] Replaced first occurrence for '${replacement.find}' in ${storyPath}`);
+                            replaced = true;
+                            break; // move to next CSV row
+                        }
+                    }
+
+                    if (!replaced) {
+                        console.log(`[IDMLProcessor] No occurrence found for '${replacement.find}'`);
+                    }
                 }
             }
 

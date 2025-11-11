@@ -81,9 +81,15 @@ class InDesignUpdateApp {
 
         // (Removed JSON paste option; CSV upload only now.)
 
-        // Process button
+        // Process button (default: first-match-per-row behavior)
         document.getElementById('processBtn').addEventListener('click', () => {
-            this.processFile();
+            this.processFile(false);
+        });
+
+        // Replace All button - replaces all matches across the file
+        const replaceAllBtn = document.getElementById('replaceAllBtn');
+        if (replaceAllBtn) replaceAllBtn.addEventListener('click', () => {
+            this.processFile(true);
         });
 
     // Preview glossary / CSV
@@ -401,7 +407,10 @@ class InDesignUpdateApp {
         this.mode = 'replace';
     }
 
-    async processFile() {
+    // If replaceAll flag is true, every replacement will replace ALL occurrences
+    // in the document; otherwise the previous behavior (first-occurrence-per-row
+    // for IDML and first-only for PDF when appropriate) is used.
+    async processFile(replaceAll = false) {
         try {
             if (!this.currentFile) {
                 throw new Error('No file selected');
@@ -421,10 +430,11 @@ class InDesignUpdateApp {
                 if (replacements.length === 0) throw new Error('Please add at least one replacement pair or upload a CSV with current,replace headers');
             }
 
-            // Get options
+            // Get options (include replaceAll flag)
             const options = {
                 caseSensitive: document.getElementById('caseSensitive').checked,
-                wholeWords: document.getElementById('wholeWords').checked
+                wholeWords: document.getElementById('wholeWords').checked,
+                replaceAll: !!replaceAll
             };
 
             // Show progress

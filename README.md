@@ -7,7 +7,7 @@ A web-based application for replacing words in PDF and IDML (InDesign) files. Th
 - **PDF Processing**: Extract text from PDFs and replace specific words while maintaining layout
 - **IDML Processing**: Parse InDesign IDML files and perform text replacements that preserve all design elements
 - **Multiple Replacements**: Add multiple find/replace pairs in a single operation
-- **Translate Mode (Glossary-based)**: Upload a CSV glossary and translate documents by selecting the target language
+- **CSV-driven Replacements**: Upload a CSV with source and replacement columns, or enter manual find/replace pairs
 - **Case Sensitivity**: Option to perform case-sensitive or case-insensitive replacements
 - **Whole Words**: Option to replace only whole words or partial matches
 - **Client-Side Processing**: All processing happens in the browser - files never leave your computer
@@ -28,35 +28,24 @@ A web-based application for replacing words in PDF and IDML (InDesign) files. Th
 4. Reconstructs the IDML file with modifications
 5. Maintains all InDesign formatting, styles, and layout elements
 
-### Translate Mode (CSV Glossary)
-This project supports translation without external APIs using your own term glossary in CSV format.
+### CSV Replacements
+This project supports simple CSV-driven find/replace operations.
 
-- Upload a CSV or JSON file with language columns
-- Choose source (optional) and target language
-- The app converts the glossary into find/replace pairs and applies them across the document
+- Upload a CSV with the header columns `current,replace` (case-insensitive). Each row's `current` value will be searched for in the document and replaced with the `replace` value.
+- Alternatively, add manual find/replace pairs in the UI when you don't want to upload a CSV.
 
-CSV formats supported:
-
-1) With explicit source column (recommended):
+Example CSV:
 
 ```
-source,en,fr,de
-Hello,Hello,Bonjour,Hallo
-World,World,Monde,Welt
-```
-
-2) Language-only headers (first column treated as source when source language is selected):
-
-```
-en,fr,de
-Hello,Bonjour,Hallo
-World,Monde,Welt
+current,replace
+Hello,Bonjour
+World,Monde
 ```
 
 Notes:
-- Longer phrases are matched before shorter ones to reduce partial overlaps
-- For best results, keep consistent casing and enable "Whole words only" when appropriate
-JSON paste option removed per request (keep CSV for consistency).
+- Replacements are applied in the order they appear in the CSV (top-to-bottom) when processing IDML files. For each CSV row the tool will replace the first matching occurrence in the document and then move on to the next row.
+- Use the "Whole words only" option to avoid partial matches.
+- The app performs all processing client-side (files are not uploaded to any server).
 
 ## Usage
 

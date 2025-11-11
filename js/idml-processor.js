@@ -11,13 +11,43 @@ class IDMLProcessor {
             // IDML files are ZIP archives containing XML files
             this.idmlZip = await JSZip.loadAsync(file);
             
-            // Find all story files (these contain the text content)
+            // Find all story files (these contain the text content).
+            // Prefer the order defined in designmap.xml (document order) when
+            // available — this ensures "first occurrence" semantics operate
+            // in the same visual/top-to-bottom order as InDesign exports.
             this.storyFiles = [];
-            this.idmlZip.forEach((relativePath, zipEntry) => {
-                if (relativePath.startsWith('Stories/') && relativePath.endsWith('.xml')) {
-                    this.storyFiles.push(relativePath);
+
+            const designmapFile = this.idmlZip.file('designmap.xml');
+            if (designmapFile) {
+                try {
+                    const dmText = await designmapFile.async('text');
+                    const parser = new DOMParser();
+                    const dmDoc = parser.parseFromString(dmText, 'text/xml');
+                    // StoryRef elements usually reference story files via Self attr
+                    const refs = dmDoc.getElementsByTagName('StoryRef');
+                    for (let i = 0; i < refs.length; i++) {
+                        const selfAttr = refs[i].getAttribute('Self') || refs[i].getAttribute('self');
+                        if (selfAttr && selfAttr.startsWith('Stories/') && selfAttr.endsWith('.xml')) {
+                            if (this.idmlZip.file(selfAttr)) this.storyFiles.push(selfAttr);
+                        }
+                    }
+                } catch (dmErr) {
+                    console.warn('Failed to parse designmap.xml for story ordering:', dmErr);
+                    // fall back to scanning zip entries below
                 }
-            });
+            }
+
+            // If designmap didn't yield an ordered list, fall back to scanning
+            // the ZIP entries and sort deterministically by filename.
+            if (this.storyFiles.length === 0) {
+                this.idmlZip.forEach((relativePath, zipEntry) => {
+                    if (relativePath.startsWith('Stories/') && relativePath.endsWith('.xml')) {
+                        this.storyFiles.push(relativePath);
+                    }
+                });
+                // sort filenames to have a stable order if designmap isn't present
+                this.storyFiles.sort();
+            }
 
             if (this.storyFiles.length === 0) {
                 throw new Error('No story files found in IDML. This may not be a valid IDML file.');

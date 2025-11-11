@@ -535,6 +535,44 @@ class InDesignUpdateApp {
         summary.textContent = `${result.totalReplacements} replacement(s) made successfully`;
     }
 
+    // Render a simple table of replacement details (file/page, original, replacement, count)
+    renderReplacementDetails(replacementLog) {
+        const container = document.getElementById('replacementDetails');
+        container.innerHTML = '';
+
+        if (!Array.isArray(replacementLog) || replacementLog.length === 0) {
+            container.textContent = 'No detailed replacement log available.';
+            return;
+        }
+
+        const table = document.createElement('table');
+        table.className = 'preview-table-inner';
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        ['Location','Original','Replacement','Count'].forEach(h => {
+            const th = document.createElement('th'); th.textContent = h; headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        for (const item of replacementLog) {
+            const tr = document.createElement('tr');
+            const loc = document.createElement('td');
+            loc.textContent = item.file || (item.page ? `Page ${item.page}` : 'N/A');
+            tr.appendChild(loc);
+
+            const orig = document.createElement('td'); orig.textContent = item.original || ''; tr.appendChild(orig);
+            const rep = document.createElement('td'); rep.textContent = item.replacement || ''; tr.appendChild(rep);
+            const cnt = document.createElement('td'); cnt.textContent = (typeof item.count !== 'undefined') ? item.count : (item.count ? item.count : 1); tr.appendChild(cnt);
+
+            tbody.appendChild(tr);
+        }
+
+        table.appendChild(tbody);
+        container.appendChild(table);
+    }
+
     async downloadFile() {
         try {
             if (!this.processedFile) {

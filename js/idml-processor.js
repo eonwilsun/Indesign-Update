@@ -513,10 +513,22 @@ class IDMLProcessor {
 
         const matches = [];
         if (opts.wholeWords) {
-            const re = new RegExp('\\b' + this.escapeRegExp(searchFind) + '\\b', opts.caseSensitive ? 'g' : 'gi');
-            let m; const execSource = opts.caseSensitive ? normUnesc : normUnesc.toLowerCase();
-            while ((m = re.exec(execSource)) !== null) {
-                matches.push({ start: m.index, end: m.index + m[0].length }); if (firstOnly) break;
+            // Manual search with boundary checks so we handle word-boundary
+            // behavior reliably on the normalized string (covers ASCII word chars).
+            const execSource = opts.caseSensitive ? normUnesc : normUnesc.toLowerCase();
+            const term = opts.caseSensitive ? normFind : normFind.toLowerCase();
+            let idx = 0;
+            const isWordChar = (ch) => /[A-Za-z0-9_]/.test(ch);
+            while (true) {
+                const foundAt = execSource.indexOf(term, idx);
+                if (foundAt === -1) break;
+                const before = foundAt - 1 >= 0 ? execSource[foundAt - 1] : null;
+                const after = (foundAt + term.length) < execSource.length ? execSource[foundAt + term.length] : null;
+                if ((before === null || !isWordChar(before)) && (after === null || !isWordChar(after))) {
+                    matches.push({ start: foundAt, end: foundAt + term.length });
+                    if (firstOnly) break;
+                }
+                idx = foundAt + 1; // move forward to find overlapping occurrences as needed
             }
         } else {
             let idx = 0; while (true) {
@@ -636,11 +648,21 @@ class IDMLProcessor {
 
         const matches = [];
         if (options.wholeWords) {
-            const re = new RegExp('\\b' + this.escapeRegExp(searchTerm) + '\\b', options.caseSensitive ? 'g' : 'gi');
-            let mm;
-            while ((mm = re.exec(searchSource)) !== null) {
-                matches.push({ start: mm.index, end: mm.index + mm[0].length });
-                if (firstOnly) break;
+            // Manual boundary-aware search on the normalized combined string.
+            const execSource = options.caseSensitive ? searchSource : searchSource.toLowerCase();
+            const term = options.caseSensitive ? searchTerm : searchTerm.toLowerCase();
+            const isWordChar = (ch) => /[A-Za-z0-9_]/.test(ch);
+            let idx = 0;
+            while (true) {
+                const at = execSource.indexOf(term, idx);
+                if (at === -1) break;
+                const before = at - 1 >= 0 ? execSource[at - 1] : null;
+                const after = (at + term.length) < execSource.length ? execSource[at + term.length] : null;
+                if ((before === null || !isWordChar(before)) && (after === null || !isWordChar(after))) {
+                    matches.push({ start: at, end: at + term.length });
+                    if (firstOnly) break;
+                }
+                idx = at + 1; // continue searching (allow overlapping checks)
             }
         } else {
             let idx = 0;

@@ -52,7 +52,16 @@ class IDMLProcessor {
                         const storyFile = this.idmlZip.file(storyPath);
                         if (!storyFile) continue;
 
-                        const xmlContent = await storyFile.async('text');
+                        // If we've already modified this story earlier in the
+                        // replacement sequence, operate on the modified content so
+                        // subsequent replacements build on prior changes instead
+                        // of overwriting them.
+                        let xmlContent;
+                        if (this.modifiedFiles.has(storyPath)) {
+                            xmlContent = this.modifiedFiles.get(storyPath);
+                        } else {
+                            xmlContent = await storyFile.async('text');
+                        }
 
                         const { newXml, count } = this.performXMLTextReplacement(
                             xmlContent,
@@ -85,7 +94,14 @@ class IDMLProcessor {
                         const storyFile = this.idmlZip.file(storyPath);
                         if (!storyFile) continue;
 
-                        const xmlContent = await storyFile.async('text');
+                        // Prefer the story's currently-modified version if present
+                        // so we don't lose earlier replacements in the same run.
+                        let xmlContent;
+                        if (this.modifiedFiles.has(storyPath)) {
+                            xmlContent = this.modifiedFiles.get(storyPath);
+                        } else {
+                            xmlContent = await storyFile.async('text');
+                        }
 
                         // Try to replace only the first match inside this story
                         const { newXml, count } = this.performXMLTextReplacementOnce(

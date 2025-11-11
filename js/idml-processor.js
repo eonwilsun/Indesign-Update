@@ -63,7 +63,7 @@ class IDMLProcessor {
                             xmlContent = await storyFile.async('text');
                         }
 
-                        const { newXml, count } = this.performXMLTextReplacement(
+                        const { newXml, count, debugMatches, matchType } = this.performXMLTextReplacement(
                             xmlContent,
                             replacement.find,
                             replacement.replace,
@@ -73,7 +73,9 @@ class IDMLProcessor {
                         if (count > 0) {
                             this.modifiedFiles.set(storyPath, newXml);
                             totalReplacements += count;
-                            const debug = this._createDebugSnippet(xmlContent, newXml);
+                            const debug = this._createDebugSnippet(xmlContent, newXml) || {};
+                            debug.matches = debugMatches || [];
+                            debug.method = matchType || 'block-level';
                             replacementLog.push({
                                 file: storyPath,
                                 original: replacement.find,
@@ -107,7 +109,7 @@ class IDMLProcessor {
                         }
 
                         // Try to replace only the first match inside this story
-                        const { newXml, count } = this.performXMLTextReplacementOnce(
+                        const { newXml, count, debugMatches, matchType } = this.performXMLTextReplacementOnce(
                             xmlContent,
                             replacement.find,
                             replacement.replace,
@@ -118,7 +120,9 @@ class IDMLProcessor {
                             // Store modified content for this story
                             this.modifiedFiles.set(storyPath, newXml);
                             totalReplacements += count;
-                            const debug = this._createDebugSnippet(xmlContent, newXml);
+                            const debug = this._createDebugSnippet(xmlContent, newXml) || {};
+                            debug.matches = debugMatches || [];
+                            debug.method = matchType || 'block-level';
                             replacementLog.push({
                                 file: storyPath,
                                 original: replacement.find,
@@ -207,15 +211,25 @@ class IDMLProcessor {
         // multi-paragraph/heading spans). This inserts the replacement into
         // the first matched block and clears the consumed text from subsequent
         // blocks to avoid touching XML tags.
+        let debugMatches = [];
+        let matchType = null;
         if (count === 0) {
             const crossResult = this._replaceAcrossContentBlocks(xmlContent, findText, replaceText, options, /* firstOnly */ false);
             if (crossResult.count > 0) {
                 newXml = crossResult.newXml;
                 count += crossResult.count;
+                debugMatches = crossResult.debugMatches || [];
+                matchType = 'cross-block';
             }
+        } else {
+            // If we replaced inside blocks, try to collect debugMatches by
+            // re-running the block-level extraction to get per-block matches.
+            // Note: replaceTextContent currently returns debugMatches when used
+            // in the replace callbacks; but we aggregate here using a simple
+            // best-effort approach: we won't duplicate that work here.
         }
 
-        return { newXml, count };
+        return { newXml, count, debugMatches, matchType };
     }
 
     // Similar to performXMLTextReplacement but stops after replacing the FIRST
@@ -255,7 +269,7 @@ class IDMLProcessor {
                 if (done) return match;
                 const updatedCharContent = charContent.replace(contentRegex, (contentMatch, contentText) => {
                     if (done) return contentMatch;
-                    const { newText, replacementCount } = this.replaceTextContentOnce(
+                    const { newText, replacementCount, debugMatches: dm } = this.replaceTextContentOnce(
                         contentText,
                         findText,
                         replaceText,
@@ -263,6 +277,9 @@ class IDMLProcessor {
                     );
                     if (replacementCount > 0) {
                         count += replacementCount;
+                        // attach debugMatches if provided (we can't surface them
+                        // directly from here, but performXMLTextReplacementOnce will
+                        // surface cross-block matches if needed)
                         done = true;
                         return contentMatch.replace(contentText, newText);
                     }
@@ -274,15 +291,19 @@ class IDMLProcessor {
         }
 
         // If still not replaced, try cross-block single replacement fallback
+        let debugMatches = [];
+        let matchType = null;
         if (count === 0) {
             const crossResult = this._replaceAcrossContentBlocks(xmlContent, findText, replaceText, options, /* firstOnly */ true);
             if (crossResult.count > 0) {
                 newXml = crossResult.newXml;
                 count += crossResult.count;
+                debugMatches = crossResult.debugMatches || [];
+                matchType = 'cross-block';
             }
         }
 
-        return { newXml, count };
+        return { newXml, count, debugMatches, matchType };
     }
 
     // Replace only the first occurrence inside a block of text (not the whole XML)
@@ -290,14 +311,15 @@ class IDMLProcessor {
     replaceTextContentOnce(text, findText, replaceText, options) {
         // Use whitespace-normalized matching so multi-line/paragraph finds
         // (with newlines or multiple spaces) still match content blocks.
-        const { newText, replacementCount } = this._normalizedReplace(text, findText, replaceText, options, /* firstOnly */ true);
-        return { newText, replacementCount };
+        const res = this._normalizedReplace(text, findText, replaceText, options, /* firstOnly */ true);
+        // res: { newText, replacementCount, debugMatches }
+        return { newText: res.newText, replacementCount: res.replacementCount, debugMatches: res.debugMatches || [] };
     }
 
     replaceTextContent(text, findText, replaceText, options) {
         // Use whitespace-normalized matching for robust multi-line/space handling
-        const { newText, replacementCount } = this._normalizedReplace(text, findText, replaceText, options, /* firstOnly */ false);
-        return { newText, replacementCount };
+        const res = this._normalizedReplace(text, findText, replaceText, options, /* firstOnly */ false);
+        return { newText: res.newText, replacementCount: res.replacementCount, debugMatches: res.debugMatches || [] };
     }
 
     // Helper: perform matching on a normalized (collapsed whitespace) copy of the
@@ -376,21 +398,28 @@ class IDMLProcessor {
             }
         }
 
-        if (matches.length === 0) return { newText: originalText, replacementCount: 0 };
+        if (matches.length === 0) return { newText: originalText, replacementCount: 0, debugMatches: [] };
 
         // Map normalized matches back to original indices using two-step mapping:
         // normIndex -> unescapedIndex -> originalIndex
         let newText = originalText; let total = 0;
+        const debugMatches = [];
         for (let i = matches.length - 1; i >= 0; i--) {
             const m = matches[i];
             const unescStartIndex = mapNormToUnesc[m.start];
             const unescEndIndex = (m.end < mapNormToUnesc.length) ? mapNormToUnesc[m.end] : (unescaped.length);
             const origStart = mapUnesc[unescStartIndex];
             const origEnd = (unescEndIndex < mapUnesc.length) ? mapUnesc[unescEndIndex] : originalText.length;
-            newText = newText.slice(0, origStart) + replaceText + newText.slice(origEnd); total++;
+
+            // capture a small snippet of the unescaped matched text for debugging
+            const matchedUnescaped = unescaped.slice(unescStartIndex, unescEndIndex);
+            debugMatches.push({ normStart: m.start, normEnd: m.end, unescStartIndex, unescEndIndex, origStart, origEnd, matchedUnescaped });
+
+            newText = newText.slice(0, origStart) + replaceText + newText.slice(origEnd);
+            total++;
         }
 
-        return { newText, replacementCount: total };
+        return { newText, replacementCount: total, debugMatches };
     }
 
     // Attempt to find and replace findText that spans across multiple adjacent
@@ -496,11 +525,12 @@ class IDMLProcessor {
             }
         }
 
-        if (matches.length === 0) return { newXml: xmlContent, count: 0 };
+        if (matches.length === 0) return { newXml: xmlContent, count: 0, debugMatches: [] };
 
         // For each match (or only first), map back to blocks and perform replacements
         let newXml = xmlContent;
         let total = 0;
+        const debugMatches = [];
         for (let mi = matches.length - 1; mi >= 0; mi--) {
             const match = matches[mi];
             const startMapEntry = normMap[match.start];
@@ -525,6 +555,14 @@ class IDMLProcessor {
             const after = newXml.slice(blocks[endBlock].fullEnd);
             const middle = `<Content>${this._escapeForXML(newStartInner)}<\/Content>`;
             newXml = before + middle + after;
+
+            // record debug info about this cross-block match
+            try {
+                const matched = normCombined.slice(match.start, match.end);
+                debugMatches.push({ normStart: match.start, normEnd: match.end, startBlock, endBlock, startInner, endInner, matched });
+            } catch (e) {
+                // ignore
+            }
 
             total++;
             if (firstOnly) break;

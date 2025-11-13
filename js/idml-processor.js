@@ -779,12 +779,37 @@ class IDMLProcessor {
     async createModifiedIDML() {
         // Create a new ZIP file with all original files plus modifications
         const newZip = new JSZip();
-        
-        // Copy all files from original IDML
+        // Before packaging, validate that any modified XML files are
+        // well-formed. This prevents creating an IDML with mismatched
+        // tags that InDesign cannot open. If validation fails we throw
+        // a descriptive error including the offending file path.
+        try {
+            const parser = new DOMParser();
+            for (const [path, content] of this.modifiedFiles) {
+                // Only validate XML files (skip binaries like images)
+                if (!path.toLowerCase().endsWith('.xml')) continue;
+                try {
+                    const doc = parser.parseFromString(content, 'text/xml');
+                    const parsererror = doc.getElementsByTagName('parsererror');
+                    if (parsererror && parsererror.length > 0) {
+                        // Extract a short snippet for debugging
+                        const snippet = content.slice(0, 800);
+                        throw new Error(`XML parse error in modified file '${path}'. Snippet: ${snippet}`);
+                    }
+                } catch (e) {
+                    throw new Error(`Validation failed for modified XML file '${path}': ${e.message}`);
+                }
+            }
+        } catch (validationErr) {
+            console.error('Modified IDML validation failed:', validationErr);
+            throw validationErr;
+        }
+
+        // Copy all files from original IDML (use modified content where present)
         const copyPromises = [];
         this.idmlZip.forEach((relativePath, zipEntry) => {
             if (this.modifiedFiles.has(relativePath)) {
-                // Use modified version
+                // Use modified version (we already validated XML above)
                 newZip.file(relativePath, this.modifiedFiles.get(relativePath));
             } else {
                 // Copy original file

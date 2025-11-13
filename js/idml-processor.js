@@ -692,15 +692,37 @@ class IDMLProcessor {
             const endBlock = endMapEntry.blockIndex;
             const endInner = endMapEntry.innerIndex + 1; // exclusive
 
+            // Safety check: ensure the region between the first full Content
+            // element and the last full Content element contains only
+            // repeated <Content> elements (and whitespace). If other XML tags
+            // (e.g., CharacterStyleRange, ParagraphStyleRange) appear in the
+            // intervening region, collapsing them into a single <Content>
+            // element can remove or reorder tags and produce mismatched-tag
+            // XML that InDesign cannot open. In that case we skip the
+            // cross-block collapse to remain conservative.
+            try {
+                const between = xmlContent.slice(blocks[startBlock].fullStart, blocks[endBlock].fullEnd);
+                const onlyContentsRe = /^(?:\s*<Content[^>]*>[\s\S]*?<\/Content>\s*)+$/;
+                if (!onlyContentsRe.test(between)) {
+                    // Not safe to collapse; skip this match to avoid corrupting XML
+                    console.warn('Skipping cross-block collapse: intervening XML contains non-Content tags (unsafe).');
+                    continue;
+                }
+            } catch (e) {
+                // If any unexpected error, skip this match conservatively
+                console.warn('Error while checking safety of cross-block replacement, skipping match.', e);
+                continue;
+            }
+
             // Unescape the preserved slices so we don't double-escape existing
             // XML entities when we re-escape the final combined string.
             const preUnesc = this._unescapeForXML(blocks[startBlock].inner.slice(0, startInner));
             const postUnesc = this._unescapeForXML(blocks[endBlock].inner.slice(endInner));
             const newStartInner = preUnesc + replaceText + postUnesc;
 
-            // Replace in xml by reconstructing the first full Content element and
-            // dropping the full elements for the intervening blocks. We escape
-            // the replacement for XML safety.
+            // Safe to collapse the consecutive <Content> elements: replace the
+            // entire region from the start of the first Content full element
+            // to the end of the last with a single escaped Content element.
             const before = newXml.slice(0, blocks[startBlock].fullStart);
             const after = newXml.slice(blocks[endBlock].fullEnd);
             const middle = `<Content>${this._escapeForXML(newStartInner)}<\/Content>`;
@@ -718,7 +740,7 @@ class IDMLProcessor {
             if (firstOnly) break;
         }
 
-        return { newXml, count: total };
+        return { newXml, count: total, debugMatches };
     }
 
     // Escape text for safe insertion back into XML Content elements

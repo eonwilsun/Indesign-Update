@@ -6,6 +6,7 @@ A web-based application for replacing words in PDF and IDML (InDesign) files. Th
 
 - **PDF Processing**: Extract text from PDFs and replace specific words while maintaining layout
 - **IDML Processing**: Parse InDesign IDML files and perform text replacements that preserve all design elements
+- **Translation**: Translate IDML text content using MyMemory (free), DeepL, or Google Cloud Translation APIs
 - **Multiple Replacements**: Add multiple find/replace pairs in a single operation
 - **CSV-driven Replacements**: Upload a CSV with source and replacement columns, or enter manual find/replace pairs
 - **Case Sensitivity**: Option to perform case-sensitive or case-insensitive replacements
@@ -49,11 +50,35 @@ Notes:
 
 ## Usage
 
+### Find & Replace Mode
 1. **Upload File**: Drag and drop or browse for a PDF or IDML file
 2. **Add Replacements**: Enter words to find and their replacements
 3. **Configure Options**: Choose case sensitivity and whole word matching
 4. **Process**: Click the process button to perform replacements
 5. **Download**: Download the modified file
+
+### Translation Mode
+1. **Upload IDML**: Load an InDesign IDML file
+2. **Select Provider**:
+   - **MyMemory** (default): Free, no API key required, 500 requests/day/IP
+   - **DeepL**: Requires free API key, 500k characters/month free tier
+   - **Google Cloud Translation**: Requires API key (paid service)
+3. **Choose Languages**: Select source and target languages
+4. **Add API Key** (if using DeepL or Google): Enter your API key - it's stored in memory only, never saved
+5. **Translate**: Click the "Translate IDML" button
+6. **Download**: Get your translated IDML file
+
+#### Getting API Keys
+- **DeepL Free API**: Sign up at [https://www.deepl.com/pro-api](https://www.deepl.com/pro-api) - 500k characters/month free
+- **Google Cloud Translation**: Create project at [https://cloud.google.com/translate](https://cloud.google.com/translate) and enable the Translation API
+
+#### Translation Security & Privacy
+- ✅ API keys are **never stored** in files or browser storage
+- ✅ Keys are held **in-memory only** during your session
+- ✅ Keys are **never committed** to the git repository
+- ⚠️ Your text content is sent to third-party translation services
+- ⚠️ Review your provider's privacy policy before translating sensitive content
+- 💡 For highest security, use a server-side proxy instead of client-side API calls
 
 ## Deployment to GitHub Pages
 
@@ -89,7 +114,9 @@ IndesignUpdate/
 ├── js/
 │   ├── app.js              # Main application logic
 │   ├── pdf-processor.js    # PDF processing functionality
-│   └── idml-processor.js   # IDML processing functionality
+│   ├── idml-processor.js   # IDML processing functionality
+│   └── translator.js       # Translation API integration
+├── .env.example            # Example API key configuration (DO NOT COMMIT .env)
 └── README.md               # This file
 ```
 
@@ -120,9 +147,12 @@ All dependencies are loaded via CDN:
 - Some advanced InDesign features may not round-trip perfectly
 - Binary .indd files are not supported (use IDML export)
 
-### Translate Mode:
-- This is glossary-based (no external translation API). It won't translate arbitrary sentences beyond entries provided in your glossary
-- For live machine translation (e.g., Azure, DeepL), you need a server-side proxy to protect API keys. A static GitHub Pages site cannot safely store secrets
+### Translation:
+- Requires valid IDML files (PDF translation not currently supported)
+- Uses external APIs - data is transmitted to third-party services
+- API keys are never saved or committed to the repository
+- Rate-limited to prevent quota exhaustion (200ms between requests)
+- Best for simple text - complex formatting may need manual review
 
 ## Technical Details
 
@@ -142,11 +172,19 @@ All dependencies are loaded via CDN:
 
 ## Security
 
+### Find & Replace Processing
 - All processing happens client-side in the browser
 - Files are never uploaded to any server
 - No data is stored or transmitted
 
-For machine translation via cloud APIs, use a server-side proxy (e.g., serverless function) to keep API keys secret; direct browser calls from a static site will expose keys.
+### Translation Feature Security
+- **API Keys**: You provide your own API keys via the UI - they're stored in memory only during your session
+- **No Storage**: Keys are never saved to browser storage, localStorage, or files
+- **No Repository Exposure**: Keys are never committed to git (checked via .gitignore)
+- **Third-Party Data**: When translating, your text content is sent to the selected translation API provider
+- **Client-Side Calls**: API requests go directly from your browser to the provider (no backend proxy)
+- **Privacy Review**: Always review the privacy policy of your chosen translation provider
+- **Recommendation**: For production use with sensitive content, implement a server-side proxy to mediate API calls and store keys in environment variables instead of user input
 
 ## Contributing
 

@@ -124,9 +124,64 @@
                     </label>
                 </div>
 
-                <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+                <!-- Translation settings -->
+                <div style="margin-top:16px; padding:12px; border:1px solid #ddd; border-radius:4px; background:#f9f9f9;">
+                    <h3 style="margin:0 0 8px 0; font-size:14px;">🌐 Translation (Experimental)</h3>
+                    <div style="display:grid; gap:8px;">
+                        <div>
+                            <label style="font-size:12px;">Provider:</label>
+                            <select id="translationProvider" style="width:100%; padding:4px;">
+                                <option value="mymemory">MyMemory (Free, no key needed)</option>
+                                <option value="deepl">DeepL (Free tier: 500k chars/month)</option>
+                                <option value="google">Google Cloud Translation (requires key)</option>
+                            </select>
+                        </div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                            <div>
+                                <label style="font-size:12px;">From:</label>
+                                <select id="sourceLang" style="width:100%; padding:4px;">
+                                    <option value="auto">Auto-detect</option>
+                                    <option value="en">English</option>
+                                    <option value="es">Spanish</option>
+                                    <option value="fr">French</option>
+                                    <option value="de">German</option>
+                                    <option value="it">Italian</option>
+                                    <option value="pt">Portuguese</option>
+                                    <option value="zh">Chinese</option>
+                                    <option value="ja">Japanese</option>
+                                    <option value="ar">Arabic</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:12px;">To:</label>
+                                <select id="targetLang" style="width:100%; padding:4px;">
+                                    <option value="en">English</option>
+                                    <option value="es">Spanish</option>
+                                    <option value="fr">French</option>
+                                    <option value="de">German</option>
+                                    <option value="it">Italian</option>
+                                    <option value="pt">Portuguese</option>
+                                    <option value="zh">Chinese</option>
+                                    <option value="ja">Japanese</option>
+                                    <option value="ar">Arabic</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="apiKeyContainer" style="display:none;">
+                            <label style="font-size:12px;">API Key (stored in-memory only, never saved):</label>
+                            <input type="password" id="apiKeyInput" placeholder="Enter your API key" style="width:100%; padding:4px;">
+                            <p style="font-size:11px; color:#666; margin:4px 0 0 0;">⚠️ Your API key is stored in browser memory only and never sent to our servers or saved.</p>
+                        </div>
+                        <p style="font-size:11px; color:#666; margin:0;">Translation sends text to third-party APIs. Do not translate confidential documents without reviewing provider policies.</p>
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap;">
                     <button class="process-btn" id="processBtn">
-                    <i class="fas fa-cog"></i> Process File
+                        <i class="fas fa-cog"></i> Process File
+                    </button>
+                    <button class="process-btn" id="translateBtn" style="background:#2196F3;">
+                        <i class="fas fa-language"></i> Translate IDML
                     </button>
                     <button class="process-btn" id="prescanBtn" title="Scan IDML for all candidate matches without changing files">
                         <i class="fas fa-search"></i> Pre-scan matches
@@ -188,6 +243,7 @@
     <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="js/pdf-processor.js"></script>
     <script src="js/idml-processor.js"></script>
+    <script src="js/translator.js"></script>
     <script>
         // Prevent the browser from navigating to/dropping files onto the window
         // (without this, dropping an IDML on the page may cause the browser to open/download it)

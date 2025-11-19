@@ -5,6 +5,7 @@ class InDesignUpdateApp {
         this.fileType = null;
         this.pdfProcessor = new PDFProcessor();
         this.idmlProcessor = new IDMLProcessor();
+        this.translator = new Translator();
         this.parsedCsvRows = null; // temporary parsed CSV preview buffer (awaiting user accept)
         this.pairCounter = 1;
         this.mode = 'replace';
@@ -130,6 +131,22 @@ class InDesignUpdateApp {
                 this.showError('Pre-scan failed: ' + err.message);
             }
         });
+
+        // Translate button: translate IDML text content
+        const translateBtn = document.getElementById('translateBtn');
+        if (translateBtn) translateBtn.addEventListener('click', () => this.translateFile());
+
+        // Translation provider selector: show/hide API key input
+        const providerSelect = document.getElementById('translationProvider');
+        if (providerSelect) {
+            providerSelect.addEventListener('change', () => {
+                const apiKeyContainer = document.getElementById('apiKeyContainer');
+                const provider = providerSelect.value;
+                if (apiKeyContainer) {
+                    apiKeyContainer.style.display = (provider === 'deepl' || provider === 'google') ? 'block' : 'none';
+                }
+            });
+        }
 
         // Replace All button - replaces all matches across the file
         const replaceAllBtn = document.getElementById('replaceAllBtn');
@@ -768,6 +785,117 @@ class InDesignUpdateApp {
         // Simple error notification - you could enhance this
         console.error('Error:', message);
         alert('Error: ' + message);
+    }
+
+    async translateFile() {
+        try {
+            if (!this.currentFile || this.fileType !== 'idml') {
+                throw new Error('Please load an IDML file before translating');
+            }
+
+            // Get translation settings
+            const provider = document.getElementById('translationProvider').value;
+            const sourceLang = document.getElementById('sourceLang').value;
+            const targetLang = document.getElementById('targetLang').value;
+            const apiKey = document.getElementById('apiKeyInput').value.trim();
+
+            // Configure translator
+            if (provider !== 'mymemory' && !apiKey) {
+                throw new Error(`${provider.toUpperCase()} requires an API key. Please enter your key or switch to MyMemory (free).`);
+            }
+
+            this.translator.setLanguages(sourceLang, targetLang);
+            if (apiKey) {
+                this.translator.setApiKey(apiKey, provider);
+            } else {
+                this.translator.provider = provider;
+            }
+
+            this.showProgress();
+            this.updateProgress(5, 'Starting translation...');
+
+            // Collect all text from all story files
+            const allTexts = [];
+            const storyMappings = [];
+
+            for (const storyPath of this.idmlProcessor.storyFiles) {
+                const storyFile = this.idmlProcessor.idmlZip.file(storyPath);
+                if (!storyFile) continue;
+
+                const xmlContent = await storyFile.async('text');
+                const extracted = this.translator.extractTextFromIDML(xmlContent);
+
+                if (extracted.length > 0) {
+                    storyMappings.push({
+                        path: storyPath,
+                        originalXml: xmlContent,
+                        textMappings: extracted
+                    });
+                    allTexts.push(...extracted.map(t => t.decoded));
+                }
+            }
+
+            if (allTexts.length === 0) {
+                throw new Error('No translatable text found in IDML');
+            }
+
+            this.updateProgress(10, `Translating ${allTexts.length} text segments...`);
+
+            // Translate all texts with progress
+            const translated = await this.translator.translateBatch(allTexts, (percent, message) => {
+                this.updateProgress(10 + percent * 0.8, message);
+            });
+
+            this.updateProgress(90, 'Injecting translations...');
+
+            // Inject translations back into stories
+            const modifiedFiles = new Map();
+            let translatedIndex = 0;
+
+            for (const storyMapping of storyMappings) {
+                // Add translations to mappings
+                for (const textMapping of storyMapping.textMappings) {
+                    textMapping.translated = translated[translatedIndex++];
+                }
+
+                // Inject translations into XML
+                const newXml = this.translator.injectTranslatedText(
+                    storyMapping.originalXml,
+                    storyMapping.textMappings
+                );
+
+                modifiedFiles.set(storyMapping.path, newXml);
+            }
+
+            // Create new IDML with translations
+            this.idmlProcessor.modifiedFiles = modifiedFiles;
+            const modifiedIdmlBytes = await this.idmlProcessor.createModifiedIDML();
+
+            this.updateProgress(100, 'Complete!');
+
+            const result = {
+                success: true,
+                modifiedIdmlBytes,
+                totalReplacements: allTexts.length,
+                replacementLog: storyMappings.map(sm => ({
+                    file: sm.path,
+                    original: `${sm.textMappings.length} text segments`,
+                    replacement: 'Translated',
+                    count: sm.textMappings.length
+                }))
+            };
+
+            setTimeout(() => {
+                this.processedFile = result;
+                this.showDownloadSection(result);
+                this.renderReplacementDetails(result.replacementLog);
+                this.showSuccess(`Translated ${allTexts.length} text segments from ${sourceLang} to ${targetLang}`);
+            }, 500);
+
+        } catch (error) {
+            this.hideProgress();
+            this.showError(error.message);
+        }
     }
 }
 

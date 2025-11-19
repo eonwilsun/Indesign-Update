@@ -63,14 +63,18 @@ Notes:
    - **MyMemory** (default): Free, no API key required, 500 requests/day/IP
    - **DeepL**: Requires free API key, 500k characters/month free tier
    - **Google Cloud Translation**: Requires API key (paid service)
+   - **Xano**: Secure backend proxy (recommended for production, see [XANO-SETUP.md](XANO-SETUP.md))
 3. **Choose Languages**: Select source and target languages
-4. **Add API Key** (if using DeepL or Google): Enter your API key - it's stored in memory only, never saved
+4. **Add API Key or Endpoint**:
+   - For DeepL/Google: Enter API key (stored in-memory only, never saved)
+   - For Xano: Enter your Xano endpoint URL (e.g., `https://x8ki-letl-twmt.n7.xano.io/api:xxx/translate`)
 5. **Translate**: Click the "Translate IDML" button
 6. **Download**: Get your translated IDML file
 
-#### Getting API Keys
+#### Getting API Keys or Setting Up Xano
 - **DeepL Free API**: Sign up at [https://www.deepl.com/pro-api](https://www.deepl.com/pro-api) - 500k characters/month free
 - **Google Cloud Translation**: Create project at [https://cloud.google.com/translate](https://cloud.google.com/translate) and enable the Translation API
+- **Xano Backend**: Follow the complete setup guide in [XANO-SETUP.md](XANO-SETUP.md) to create a secure backend proxy (recommended for production use)
 
 #### Translation Security & Privacy
 - ✅ API keys are **never stored** in files or browser storage
@@ -78,7 +82,8 @@ Notes:
 - ✅ Keys are **never committed** to the git repository
 - ⚠️ Your text content is sent to third-party translation services
 - ⚠️ Review your provider's privacy policy before translating sensitive content
-- 💡 For highest security, use a server-side proxy instead of client-side API calls
+- 💡 **Recommended**: Use **Xano backend proxy** for production (keeps API keys server-side, see [XANO-SETUP.md](XANO-SETUP.md))
+- 🔒 Direct API calls (DeepL/Google) are secure but expose keys in network traffic; Xano eliminates this risk
 
 ## Deployment to GitHub Pages
 

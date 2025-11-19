@@ -141,9 +141,19 @@ class InDesignUpdateApp {
         if (providerSelect) {
             providerSelect.addEventListener('change', () => {
                 const apiKeyContainer = document.getElementById('apiKeyContainer');
+                const apiKeyInput = document.getElementById('apiKeyInput');
                 const provider = providerSelect.value;
                 if (apiKeyContainer) {
-                    apiKeyContainer.style.display = (provider === 'deepl' || provider === 'google') ? 'block' : 'none';
+                    apiKeyContainer.style.display = (provider === 'deepl' || provider === 'google' || provider === 'xano') ? 'block' : 'none';
+                }
+                if (apiKeyInput) {
+                    if (provider === 'xano') {
+                        apiKeyInput.type = 'text';
+                        apiKeyInput.placeholder = 'Enter your Xano endpoint URL (e.g., https://x8ki-letl-twmt.n7.xano.io/api:xxx/translate)';
+                    } else {
+                        apiKeyInput.type = 'password';
+                        apiKeyInput.placeholder = 'Enter your API key';
+                    }
                 }
             });
         }

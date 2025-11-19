@@ -32,6 +32,8 @@ class Translator {
                     return await this.translateWithDeepL(text);
                 case 'google':
                     return await this.translateWithGoogle(text);
+                case 'xano':
+                    return await this.translateWithXano(text);
                 default:
                     throw new Error('Unsupported translation provider');
             }
@@ -120,6 +122,39 @@ class Translator {
 
         const data = await response.json();
         return data.data.translations[0].translatedText;
+    }
+
+    // Xano Backend Proxy: Secure server-side API that handles translation
+    // Your Xano endpoint stores API keys securely and forwards translation requests
+    async translateWithXano(text) {
+        if (!this.apiKey) {
+            throw new Error('Xano API endpoint URL required');
+        }
+
+        // this.apiKey stores your Xano endpoint URL (e.g., https://x8ki-letl-twmt.n7.xano.io/api:xxx/translate)
+        const url = this.apiKey;
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                text: text,
+                source: this.sourceLanguage,
+                target: this.targetLanguage
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Xano API error: ${response.status} - ${errorText}`);
+        }
+
+        const data = await response.json();
+        // Adjust based on your Xano endpoint response structure
+        // Example: { translatedText: "..." } or { translation: "..." }
+        return data.translatedText || data.translation || data.text;
     }
 
     // Batch translate multiple text strings (with rate limiting)

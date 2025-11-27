@@ -692,14 +692,31 @@ class IDMLProcessor {
             const endBlock = endMapEntry.blockIndex;
             const endInner = endMapEntry.innerIndex + 1; // exclusive
 
-            // Safety check: ensure the region between the first full Content
-            // element and the last full Content element contains only
-            // repeated <Content> elements (and whitespace). If other XML tags
-            // (e.g., CharacterStyleRange, ParagraphStyleRange) appear in the
-            // intervening region, collapsing them into a single <Content>
-            // element can remove or reorder tags and produce mismatched-tag
-            // XML that InDesign cannot open. In that case we skip the
-            // cross-block collapse to remain conservative.
+            // Safety check: verify that the matched text doesn't extend beyond
+            // the boundaries of Content blocks into XML structure. Also ensure
+            // the region between Content blocks contains only repeated <Content>
+            // elements (and whitespace). If other XML tags appear or if the match
+            // boundaries are unsafe, skip the cross-block collapse.
+            
+            // First, ensure match is fully contained within Content block boundaries
+            if (startBlock !== endBlock) {
+                // For multi-block matches, verify the match doesn't spill outside Content blocks
+                const firstBlockInner = blocks[startBlock].inner;
+                const lastBlockInner = blocks[endBlock].inner;
+                
+                // Check if startInner is valid within the first block
+                if (startInner < 0 || startInner > firstBlockInner.length) {
+                    console.warn('Skipping cross-block: start position outside first Content block boundary.');
+                    continue;
+                }
+                
+                // Check if endInner is valid within the last block
+                if (endInner < 0 || endInner > lastBlockInner.length) {
+                    console.warn('Skipping cross-block: end position outside last Content block boundary.');
+                    continue;
+                }
+            }
+            
             try {
                 const between = xmlContent.slice(blocks[startBlock].fullStart, blocks[endBlock].fullEnd);
                 const onlyContentsRe = /^(?:\s*<Content[^>]*>[\s\S]*?<\/Content>\s*)+$/;
@@ -716,8 +733,28 @@ class IDMLProcessor {
 
             // Unescape the preserved slices so we don't double-escape existing
             // XML entities when we re-escape the final combined string.
-            const preUnesc = this._unescapeForXML(blocks[startBlock].inner.slice(0, startInner));
-            const postUnesc = this._unescapeForXML(blocks[endBlock].inner.slice(endInner));
+            // Add bounds checking to prevent slicing errors
+            let preUnesc = '';
+            let postUnesc = '';
+            
+            try {
+                const preSlice = blocks[startBlock].inner.slice(0, Math.max(0, startInner));
+                preUnesc = this._unescapeForXML(preSlice);
+            } catch (e) {
+                console.warn('Error unescaping pre-text, skipping this replacement:', e);
+                continue;
+            }
+            
+            try {
+                const postSlice = blocks[endBlock].inner.slice(Math.max(0, endInner));
+                postUnesc = this._unescapeForXML(postSlice);
+            } catch (e) {
+                console.warn('Error unescaping post-text, skipping this replacement:', e);
+                continue;
+            }
+            
+            // Ensure replaceText is also properly escaped for XML
+            const escapedReplace = this._escapeForXML(replaceText);
             const newStartInner = preUnesc + replaceText + postUnesc;
 
             // Safe to collapse the consecutive <Content> elements: replace the
@@ -725,8 +762,26 @@ class IDMLProcessor {
             // to the end of the last with a single escaped Content element.
             const before = newXml.slice(0, blocks[startBlock].fullStart);
             const after = newXml.slice(blocks[endBlock].fullEnd);
-            const middle = `<Content>${this._escapeForXML(newStartInner)}<\/Content>`;
-            newXml = before + middle + after;
+            const middle = `<Content>${this._escapeForXML(newStartInner)}</Content>`;
+            const candidateXml = before + middle + after;
+            
+            // Quick validation: check that the replacement didn't create malformed XML
+            // by verifying Content tags are balanced in the affected region
+            try {
+                const testRegion = candidateXml.slice(Math.max(0, blocks[startBlock].fullStart - 100), 
+                                                      Math.min(candidateXml.length, blocks[endBlock].fullEnd + 100));
+                const openCount = (testRegion.match(/<Content[^>]*>/g) || []).length;
+                const closeCount = (testRegion.match(/<\/Content>/g) || []).length;
+                if (openCount !== closeCount) {
+                    console.warn('Skipping cross-block: replacement would create unbalanced Content tags.');
+                    continue;
+                }
+            } catch (e) {
+                console.warn('Error validating replacement XML, skipping:', e);
+                continue;
+            }
+            
+            newXml = candidateXml;
 
             // record debug info about this cross-block match
             try {

@@ -126,6 +126,25 @@ class IDMLProcessor {
                         );
 
                         if (count > 0) {
+                            // Validate the XML immediately after modification to catch corruption early
+                            try {
+                                const parser = new DOMParser();
+                                const doc = parser.parseFromString(newXml, 'text/xml');
+                                const parsererror = doc.getElementsByTagName('parsererror');
+                                if (parsererror && parsererror.length > 0) {
+                                    console.error(`[IDMLProcessor] XML corruption detected in ${storyPath} after replacing '${replacement.find}'. Reverting this replacement.`);
+                                    console.warn(`Problematic replacement: "${replacement.find}" -> "${replacement.replace}"`);
+                                    // Skip this replacement - don't save the corrupted XML
+                                    anyFound = true; // mark as attempted to avoid error
+                                    continue;
+                                }
+                            } catch (parseErr) {
+                                console.error(`[IDMLProcessor] XML parse error in ${storyPath} after replacing '${replacement.find}'. Reverting this replacement.`, parseErr);
+                                console.warn(`Problematic replacement: "${replacement.find}" -> "${replacement.replace}"`);
+                                anyFound = true;
+                                continue;
+                            }
+                            
                             this.modifiedFiles.set(storyPath, newXml);
                             totalReplacements += count;
                             const debug = this._createDebugSnippet(xmlContent, newXml) || {};
@@ -245,6 +264,23 @@ class IDMLProcessor {
                         );
 
                         if (count > 0) {
+                            // Validate the XML immediately after modification to catch corruption early
+                            try {
+                                const parser = new DOMParser();
+                                const doc = parser.parseFromString(newXml, 'text/xml');
+                                const parsererror = doc.getElementsByTagName('parsererror');
+                                if (parsererror && parsererror.length > 0) {
+                                    console.error(`[IDMLProcessor] XML corruption detected in ${storyPath} after replacing '${replacement.find}'. Skipping this replacement.`);
+                                    console.warn(`Problematic replacement: "${replacement.find}" -> "${replacement.replace}"`);
+                                    // Try next story for this replacement
+                                    continue;
+                                }
+                            } catch (parseErr) {
+                                console.error(`[IDMLProcessor] XML parse error in ${storyPath} after replacing '${replacement.find}'. Skipping this replacement.`, parseErr);
+                                console.warn(`Problematic replacement: "${replacement.find}" -> "${replacement.replace}"`);
+                                continue;
+                            }
+                            
                             // Store modified content for this story
                             this.modifiedFiles.set(storyPath, newXml);
                             totalReplacements += count;

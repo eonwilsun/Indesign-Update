@@ -21,6 +21,21 @@ class Translator {
         this.targetLanguage = target;
     }
 
+    // Decode HTML/numeric entities returned by translation APIs
+    decodeHtmlEntities(str) {
+        if (!str || typeof str !== 'string') return str;
+        try {
+            // First decode numeric entities like &#39;
+            str = str.replace(/&#(\d+);/g, function(_, n) { return String.fromCharCode(Number(n)); });
+            // Use DOM to decode named entities
+            const d = document.createElement('div');
+            d.innerHTML = str;
+            return d.textContent || d.innerText || '';
+        } catch (e) {
+            return str;
+        }
+    }
+
     async translateText(text) {
         if (!text || text.trim().length === 0) return text;
 
@@ -58,7 +73,7 @@ class Translator {
             throw new Error(data.responseDetails || 'Translation failed');
         }
         
-        return data.responseData.translatedText;
+        return this.decodeHtmlEntities(data.responseData.translatedText);
     }
 
     // DeepL: High-quality translation (requires API key, free tier: 500k chars/month)
@@ -92,7 +107,8 @@ class Translator {
         }
 
         const data = await response.json();
-        return data.translations[0].text;
+        const raw = data.translations[0].text;
+        return this.decodeHtmlEntities(raw);
     }
 
     // Google Cloud Translation API (requires API key)
@@ -121,7 +137,8 @@ class Translator {
         }
 
         const data = await response.json();
-        return data.data.translations[0].translatedText;
+        const raw = data.data.translations[0].translatedText;
+        return this.decodeHtmlEntities(raw);
     }
 
     // Xano Backend Proxy: Secure server-side API that handles translation
@@ -154,7 +171,8 @@ class Translator {
         const data = await response.json();
         // Adjust based on your Xano endpoint response structure
         // Example: { translatedText: "..." } or { translation: "..." }
-        return data.translatedText || data.translation || data.text;
+        const raw = data.translatedText || data.translation || data.text;
+        return this.decodeHtmlEntities(raw);
     }
 
     // Batch translate multiple text strings (with rate limiting)

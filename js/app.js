@@ -6,6 +6,16 @@ class InDesignUpdateApp {
         this.pdfProcessor = new PDFProcessor();
         this.idmlProcessor = new IDMLProcessor();
         this.translator = new Translator();
+        // Provider language support lists. `google` will be populated from the language select options.
+        this.providerSupportedLanguages = {
+            google: [],
+            mymemory: [],
+            deepl: [
+                // DeepL supports a smaller set; keep common ones here (lowercased)
+                'bg','zh','cs','da','nl','en','et','fi','fr','de','el','hu','id','it','ja','ko','lv','lt','pl','pt','ro','ru','sk','sl','es','sv','tr'
+            ],
+            xano: null // xano is a proxy - assume it can support whatever backend supports
+        };
         this.parsedCsvRows = null; // temporary parsed CSV preview buffer (awaiting user accept)
         this.pairCounter = 1;
         this.mode = 'replace';
@@ -155,8 +165,18 @@ class InDesignUpdateApp {
                         apiKeyInput.placeholder = 'Enter your API key';
                     }
                 }
+
+                // Validate language support for the newly selected provider
+                this._ensureProviderLanguageListsPopulated();
+                this.validateSelectedLanguages(false);
             });
         }
+
+        // Validate when language selects change
+        const srcSelect = document.getElementById('sourceLang');
+        const tgtSelect = document.getElementById('targetLang');
+        if (srcSelect) srcSelect.addEventListener('change', () => this.validateSelectedLanguages(false));
+        if (tgtSelect) tgtSelect.addEventListener('change', () => this.validateSelectedLanguages(false));
 
         // Replace All button - replaces all matches across the file
         const replaceAllBtn = document.getElementById('replaceAllBtn');
@@ -218,6 +238,63 @@ class InDesignUpdateApp {
 
         // Input validation for first pair
         this.setupInputValidation();
+    }
+
+    // Populate providerSupportedLanguages.google (and mymemory) from the `targetLang` select options
+    _ensureProviderLanguageListsPopulated() {
+        try {
+            const opts = Array.from(document.querySelectorAll('#targetLang option'));
+            const vals = opts.map(o => (o.value || '').toString().toLowerCase()).filter(Boolean);
+            if (vals.length > 0) {
+                this.providerSupportedLanguages.google = vals;
+                this.providerSupportedLanguages.mymemory = vals; // MyMemory is permissive; mirror google list for now
+            }
+        } catch (e) {
+            // ignore
+        }
+    }
+
+    isLanguageSupported(provider, lang) {
+        if (!lang) return false;
+        const code = (lang || '').toString();
+        // allow auto-detect for source
+        if (code === 'auto') return true;
+        const key = (provider || '').toString();
+        const list = this.providerSupportedLanguages[key];
+        if (list === null) return true; // null means proxy/all (xano)
+        if (!Array.isArray(list)) return false;
+        return list.map(l => l.toString().toLowerCase()).includes(code.toString().toLowerCase());
+    }
+
+    // Validate the selected source/target languages for the current provider.
+    // If `alertOnFail` is true, throws an Error; otherwise shows inline message and returns false.
+    validateSelectedLanguages(alertOnFail = true) {
+        this._ensureProviderLanguageListsPopulated();
+        const provider = document.getElementById('translationProvider').value;
+        const sourceLang = (document.getElementById('sourceLang').value || '').toString();
+        const targetLang = (document.getElementById('targetLang').value || '').toString();
+
+        const msgEl = document.getElementById('translationSupportMessage');
+        if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
+
+        // Check source (allow 'auto')
+        if (sourceLang && sourceLang !== 'auto' && !this.isLanguageSupported(provider, sourceLang)) {
+            const m = `${provider.toUpperCase()} does not support source language '${sourceLang}'. Please choose a different language.`;
+            if (alertOnFail) throw new Error(m);
+            if (msgEl) { msgEl.textContent = m; msgEl.style.display = 'block'; }
+            return false;
+        }
+
+        // Check target
+        if (targetLang && !this.isLanguageSupported(provider, targetLang)) {
+            const m = `${provider.toUpperCase()} does not support target language '${targetLang}'. Please choose a different language.`;
+            if (alertOnFail) throw new Error(m);
+            if (msgEl) { msgEl.textContent = m; msgEl.style.display = 'block'; }
+            return false;
+        }
+
+        // All good
+        return true;
     }
 
     setupDragAndDrop() {
@@ -810,6 +887,9 @@ class InDesignUpdateApp {
             const apiKey = document.getElementById('apiKeyInput').value.trim();
 
             // Configure translator
+            // Validate provider / language compatibility before configuring translator
+            this.validateSelectedLanguages(true);
+
             if (provider !== 'mymemory' && !apiKey) {
                 throw new Error(`${provider.toUpperCase()} requires an API key. Please enter your key or switch to MyMemory (free).`);
             }
